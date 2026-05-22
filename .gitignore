@@ -1,0 +1,20 @@
+node_modules/
+
+# Playwright run artefacts
+tests/test-results/
+tests/playwright-report/
+
+# Generated spec files — commit if you want to version them; ignore if you prefer a clean repo
+# tests/generated/*.spec.ts
+# tests/generated/test-plan.json
+# tests/generated/coverage-report.*
+
+# Compiled TypeScript
+agents/dist/
+
+# Environment variables
+.env
+.env.local
+
+# macOS
+.DS_Store

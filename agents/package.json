@@ -1,0 +1,19 @@
+{
+  "name": "@qa/agents",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "generate": "tsx src/index.ts",
+    "plan-only": "tsx src/index.ts --plan-only",
+    "generate-only": "tsx src/index.ts --generate-only",
+    "run-only": "tsx src/index.ts --run-only"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.2"
+  }
+}
