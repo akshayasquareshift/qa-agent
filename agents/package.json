@@ -3,14 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "generate": "tsx src/index.ts",
-    "plan-only": "tsx src/index.ts --plan-only",
-    "generate-only": "tsx src/index.ts --generate-only",
-    "run-only": "tsx src/index.ts --run-only"
+    "generate": "tsx --env-file=../.env src/index.ts",
+    "plan-only": "tsx --env-file=../.env src/index.ts --plan-only",
+    "generate-only": "tsx --env-file=../.env src/index.ts --generate-only",
+    "run-only": "tsx --env-file=../.env src/index.ts --run-only"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.0.0",
     "tsx": "^4.7.0",

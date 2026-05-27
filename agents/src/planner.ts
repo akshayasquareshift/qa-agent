@@ -1,32 +1,31 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { createMessage } from "./ai-client";
 import type { AppContext, TestCase, TestPlan, SkippedFlow } from "./types";
 
-const client = new Anthropic();
-
 export async function runPlanner(context: AppContext): Promise<TestPlan> {
-  const routeList = context.routes
-    .map((r) => `  ${r.displayUrl.padEnd(55)} — ${r.description}`)
-    .join("\n");
-
-  const selectorList = context.selectors
-    .map((s) => `  [${s.context}] "${s.testId}"`)
-    .join("\n");
-
-  const itemUrls = context.productHandles.length
-    ? context.productHandles
-        .map((h) => `  ${context.baseUrl}/${context.countryCode}/products/${h}`)
+  const routeList = context.routes.length
+    ? context.routes
+        .map((r) => `  ${r.displayUrl.padEnd(55)} — ${r.description}`)
         .join("\n")
-    : "  (no seeded items)";
+    : "  (no file-based routes detected — app may use client-side routing)";
 
-  const localePrefix = context.countryCode
-    ? `/${context.countryCode}`
-    : "";
+  const selectorList = context.selectors.length
+    ? context.selectors
+        .map((s) => `  [${s.context}] "${s.testId}"`)
+        .join("\n")
+    : "  (no data-testid selectors found)";
+
+  const seedSection = context.seedData.length
+    ? context.seedData.map((s) => `  ${s}`).join("\n")
+    : "  (none configured — tests should create or discover test data inline)";
+
+  const localePrefix = context.countryCode ? `/${context.countryCode}` : "";
 
   const frameworkNotes = buildFrameworkNotes(context);
 
   const prompt = `You are a senior QA engineer designing an automated E2E test suite.
 
 ## Application
+- Name: ${process.env.APP_NAME ?? "Application"}
 - Base URL: ${context.baseUrl}
 - Framework: ${context.framework}
 - Rendering: ${context.renderingModel}
@@ -38,43 +37,56 @@ ${routeList}
 ## Available data-testid Selectors (grouped by module)
 ${selectorList}
 
-## Seeded Items / Products
-${itemUrls}
+## Seed Data / Test Records
+${seedSection}
 
 ## Framework Notes
 ${frameworkNotes}
 
 ## Your Task — Two parts
 
-### Part 1: Flow Dependency Graph
-First identify all distinct user flows in this application.
+### Core objective: MAXIMUM COVERAGE
+Your primary goal is to cover as much of this application's behaviour as possible — every distinct route, every meaningful user flow, every realistic edge case. Do not stop at a minimum quota.
+
+A good plan exercises:
+- Every route discovered above (at least one test per route, more for routes with multiple states)
+- Every CRUD operation on every entity the app manages (create, read/list, view-detail, update, delete)
+- Both happy paths AND realistic failure modes for each flow (invalid input, unauthorized access, empty-state, validation errors)
+- Navigation between flows (links, breadcrumbs, redirects)
+- Permission / auth boundaries (logged-out access to protected routes, wrong-role access)
+- Form validation rules (required fields, formats, lengths)
+- Search, filtering, sorting, pagination where the UI supports them
+- Responsive / mobile layout if the app has it
+
+### Part 1: Flow Discovery
+Analyse the routes and selectors to determine this application's domain and primary purpose.
+Identify all distinct user flows specific to this application.
 Map their dependencies: flow B "dependsOn" flow A means A must work before B can be meaningfully tested.
 
-Flow categories to consider: auth, navigation, product, cart, checkout, account, order, search, categories
-
 ### Part 2: Test Cases
-Produce a test plan of AT LEAST 20 test cases ordered by dependency (TC001 should have no deps, TC002 may depend on TC001, etc.).
+Produce a test plan that maximises coverage of the flows identified above. The minimum is 20 test cases — but a real application with N routes and multiple entity types typically warrants 30–60 test cases. Err on the side of MORE coverage. Each test case should cover one specific behaviour; do not bundle multiple checks into a single test.
+
+Order test cases by dependency (TC001 should have no deps).
 
 Priority guidance:
-- HIGH: Direct revenue path — every failing HIGH test is a blocker (registration, login, add-to-cart, checkout)
-- MEDIUM: Important but not blocking (account management, product discovery, error states, sort/filter)
+- HIGH: Core critical flows for this app's primary purpose — every failing HIGH test is a production blocker
+- MEDIUM: Important but not blocking (secondary features, data management, error states, validation)
 - LOW: Nice-to-have (navigation links, edge cases, cosmetic checks)
 
 Dependency rules:
 - dependsOn must list TC IDs that must PASS before this test can meaningfully run
-- Respect the ordering: HIGH tests first, then MEDIUM, then LOW
-- Within HIGH, respect dependency chain: auth before cart, cart before checkout
+- HIGH tests first, then MEDIUM, then LOW
+- Within HIGH, auth/login flows before any flows that require authentication
 
 Selectors rules:
 - selectorsToUse must contain ONLY testid names confirmed in the selector list above
 - NEVER invent testid names that are not in the list
 
 Always skip these flows and document them:
-- Admin / back-office dashboards (requires admin credentials)
-- Payment provider processing (requires live keys)
-- Webhook / server-side-only flows (no browser surface)
-- Email-link flows (requires email testing infrastructure)
-- OAuth third-party login
+- Flows requiring external service credentials (payment processors, external OAuth, third-party APIs)
+- Server-side-only flows with no browser surface (webhooks, background jobs, cron tasks)
+- Flows requiring privileged credentials not available in the test environment
+- Email-link or SMS/OTP verification flows that require inbox access
 
 ## IMPORTANT: Keep all string values SHORT (under 15 words). Use brief bullet-point phrases, not sentences.
 
@@ -85,30 +97,29 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
   "test_cases": [
     {
       "id": "TC001",
-      "title": "User registration with valid credentials",
-      "page_url": "${context.baseUrl}${localePrefix}/account",
+      "title": "Short descriptive title",
+      "page_url": "${context.baseUrl}${localePrefix}/",
       "priority": "high",
-      "category": "auth",
+      "category": "<inferred from this app's domain>",
       "depends_on": [],
-      "rationale": "Critical user acquisition flow",
-      "state_setup": ["Not logged in"],
-      "steps": ["Go to /account", "Click register-button", "Fill form", "Submit"],
-      "expected_outcome": "Redirected to account dashboard",
-      "selectors_to_use": ["register-button", "first-name-input", "email-input", "password-input"],
+      "rationale": "Why this is critical",
+      "state_setup": ["Precondition 1"],
+      "steps": ["Navigate to page", "Interact with element", "Verify outcome"],
+      "expected_outcome": "What success looks like",
+      "selectors_to_use": [],
       "requires_auth": false
     }
   ],
   "skipped_flows": [
     {
-      "flow": "Stripe payment processing",
-      "reason": "Requires live keys and card numbers",
-      "enabled_by": "Mock payment provider or Stripe test mode with configured keys"
+      "flow": "Flow name",
+      "reason": "Why it cannot be automated now",
+      "enabled_by": "What would enable it"
     }
   ]
 }`;
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+  const response = await createMessage({
     max_tokens: 16000,
     system: "You are a QA engineer. Respond ONLY with a valid JSON object. No markdown code fences. Be concise — keep all string values short.",
     messages: [{ role: "user", content: prompt }],
@@ -120,10 +131,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
     );
   }
 
-  const rawText = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+  const rawText = response.content[0].text;
 
   const jsonStr = rawText
     .replace(/^```(?:json)?\s*/m, "")
@@ -186,10 +194,6 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
   return { testCases, skippedFlows, generatedAt: new Date().toISOString() };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Framework-specific notes injected into the planner prompt
-// ─────────────────────────────────────────────────────────────────────────────
-
 function buildFrameworkNotes(ctx: AppContext): string {
   const notes: string[] = [];
 
@@ -198,17 +202,13 @@ function buildFrameworkNotes(ctx: AppContext): string {
       "- SSR streaming: a DISABLED fallback component renders before the real one streams in.",
       "  Tests must wait for toBeEnabled() on interactive elements, not just toBeVisible().",
       "- Server Actions POST to the current page URL — use page.waitForResponse() to confirm completion.",
-      "- Some routes are URL-param-gated (e.g. /checkout?step=address opens the address form).",
-      "- Parallel routes (/account/profile, /account/addresses, /account/orders) return 404 on hard",
-      "  navigation (page.goto). Must navigate via link/button clicks (soft navigation).",
-      "- Never use waitForLoadState('networkidle') — Turbopack HMR keeps connections alive.",
+      "- Never use waitForLoadState('networkidle') — HMR keeps connections alive; use 'load' instead.",
     );
   }
 
   if (ctx.countryCode) {
     notes.push(
       `- All URLs are prefixed with /${ctx.countryCode}/ (the active locale/region).`,
-      `- Country selector options must match the region (e.g. 'gb' for the GB region).`,
     );
   }
 

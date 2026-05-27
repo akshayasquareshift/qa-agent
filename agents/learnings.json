@@ -1,5 +1,614 @@
 {
   "version": 1,
-  "updatedAt": "",
-  "learnings": []
+  "updatedAt": "2026-05-26T18:40:26.206Z",
+  "learnings": [
+    {
+      "id": "L001",
+      "category": "timing",
+      "title": "Timeout Increases Mask Root Cause Failures",
+      "detail": "All 23 tests received timeout increases (to 30s or more) as the primary fix strategy, yet all still fail at 60s. This indicates the tests are waiting for elements that fundamentally don't exist or require unmet preconditions, not just slow rendering. Timeout increases should be a last resort after confirming element existence.",
+      "specGuideline": "Before adding any wait or timeout, verify the element actually exists in the DOM at that step by manually testing or inspecting the application. If unsure, add a count check or optional existence verification before waiting. Never increase timeouts beyond 10s without confirming the element is rendered in the real application.",
+      "fixerGuideline": "When a test times out even after timeout increases, stop adding waits. Instead, run the test with headed mode and pause to inspect what's actually on the page. The element likely doesn't exist or requires navigation/setup steps that are missing.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L002",
+      "category": "flow",
+      "title": "Cascading Test Dependencies Without Explicit Setup",
+      "detail": "Multiple tests (TC007, TC011, TC014, TC023) depended on state from prior tests (active encounters, patient context, navigation) but ran independently. Fixes attempted to add precondition steps, but if those navigation/setup steps also fail, the test can never proceed. Each test must be fully self-contained with its own complete setup.",
+      "specGuideline": "Every test must explicitly create all required data and navigate to the correct starting page in its own beforeEach or test setup. Never assume another test has run first or that the application starts in a particular state. Document required preconditions as setup steps, not as dependencies on other test IDs.",
+      "fixerGuideline": "If a test times out in the middle of its flow, check whether it assumes pre-existing data (patients, encounters, sessions). Add explicit creation steps or seed data setup rather than trying to navigate to find existing entities.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L003",
+      "category": "selector",
+      "title": "Overly Generic Selectors with Chained or() Patterns",
+      "detail": "Many fixes added broad selector patterns using .or() chains, .first() methods, or multiple fallback selectors (buttons, links, roles). When these selectors match multiple elements or none at all, Playwright's strict mode violations or indefinite waits cause timeouts. Generic selectors like getByText('Submit') or getByRole('button') without narrowing context are unreliable.",
+      "specGuideline": "Always scope selectors to the smallest reliable container (modal, form, section) before searching for buttons or text. Prefer data-testid or unique ARIA labels over generic text or role queries. If using .or() or .first(), add a count assertion first to confirm expected elements exist.",
+      "fixerGuideline": "When timeout occurs at element selection, check selector specificity. Run page.locator(yourSelector).count() to see if it returns 0 (doesn't exist) or >1 (strict mode issue). Narrow the scope or add data-testid attributes.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L004",
+      "category": "timing",
+      "title": "networkidle and waitForLoadState Unreliable Indicators",
+      "detail": "Multiple fixes added waitForLoadState('networkidle') or waitForLoadState('load') expecting pages to be ready, but modern SPAs with streaming, lazy loading, or continuous polling never reach truly idle states. These waits can hang indefinitely or pass before critical content renders.",
+      "specGuideline": "Avoid waitForLoadState('networkidle') for SPAs with real-time features or async data fetching. Instead, wait for specific elements that indicate the page is ready (data tables, heading text, specific buttons). Use waitForURL() to confirm navigation completed, then wait for content-specific locators.",
+      "fixerGuideline": "If a test hangs on networkidle or load state, replace with waitForURL() or waitForSelector() on a known element that appears when the page is usable. Check if the app has WebSocket connections or polling that prevent idle state.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L005",
+      "category": "flow",
+      "title": "Authentication State Not Verified Before Actions",
+      "detail": "TC024 and TC015 show session/logout flows failing because tests assumed successful login without verifying authentication state. After login actions, tests immediately proceeded without confirming the user session was established (checking for user menu, dashboard elements, or auth cookies).",
+      "specGuideline": "After any login or authentication action, explicitly verify success before proceeding: check for a user-specific element (profile menu, username display), confirm URL changed to authenticated route, or assert auth token/cookie exists. Never assume form submission succeeded without verification.",
+      "fixerGuideline": "If tests fail immediately after login steps, add a verification assertion that checks for an authenticated-only element. Inspect application state (localStorage, cookies) to confirm auth tokens are present.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L006",
+      "category": "framework",
+      "title": "Modal/Dialog Rendering Requires Stabilization Time",
+      "detail": "Tests TC004, TC006, TC020, TC022 all attempted to interact with modals/dialogs immediately after triggering them, but timeouts suggest the modals either never appeared or weren't fully rendered. Async modal mounting, animations, or portal rendering can delay element availability even after the trigger completes.",
+      "specGuideline": "After clicking a button that opens a modal, always wait for the modal container itself (dialog role, specific modal class, or backdrop) to be visible before searching for form elements inside it. Add a small delay (100-500ms) after waitForSelector if the modal has CSS animations. Scope all subsequent selectors to the modal container.",
+      "fixerGuideline": "When tests timeout waiting for modal content, first verify the modal container appears (page.getByRole('dialog')). If the modal exists but inner elements don't, check for animation delays or portal mounting issues requiring additional wait time.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L007",
+      "category": "selector",
+      "title": "Button Enabled State vs Visibility Checks",
+      "detail": "TC002 and TC014 added toBeEnabled() checks before clicking buttons, but if the button element never exists or is hidden, toBeEnabled() will timeout. Visibility and existence must be verified before checking interactive state properties like enabled/disabled.",
+      "specGuideline": "Always wait for toBeVisible() before checking toBeEnabled(). If a button might be disabled initially, use a shorter timeout on toBeEnabled() or check isEnabled() conditionally. For submit buttons in forms, verify form validation state has resolved before expecting the button to enable.",
+      "fixerGuideline": "If toBeEnabled() times out, first check if the button exists and is visible. The element might be hidden, not yet rendered, or the selector is wrong. Test visibility first, then check enabled state separately.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L008",
+      "category": "flow",
+      "title": "Graceful Degradation Missing for Optional Features",
+      "detail": "Tests like TC003 (no patients), TC014 (no encounters), and TC021 (delete confirmation) failed when expected data didn't exist, but fixes only increased timeouts rather than adding conditional logic. Tests should handle empty states gracefully rather than timing out.",
+      "specGuideline": "For CRUD operations, add existence checks before attempting to interact with list items. Use count assertions to verify data exists, and conditionally skip or adjust test flow if lists are empty. Add explicit handling for 'no data' states rather than letting selectors timeout.",
+      "fixerGuideline": "When a test times out on list/table operations, check if the page shows empty state messaging. Add a count check first, and branch logic to handle zero results gracefully rather than waiting indefinitely for items that don't exist.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-22",
+      "lastSeen": "2026-05-22",
+      "sources": []
+    },
+    {
+      "id": "L009",
+      "category": "framework",
+      "title": "Verify dev server is reachable before test execution",
+      "detail": "Every test in the suite failed with ERR_CONNECTION_REFUSED because the application dev server was never started before the Playwright run. Wrapping page.goto in try/catch to skip the test only masks the symptom — it does not validate any application behavior and produces false-green-skip results. The root cause is missing pre-flight verification that the target origin is actually serving traffic.",
+      "specGuideline": "Never hardcode http://localhost:<port> in page.goto calls. Use relative URLs so the Playwright config baseURL is honored, and rely on Playwright's webServer config to auto-start the app before tests run.",
+      "fixerGuideline": "When every test fails with ERR_CONNECTION_REFUSED, do not patch individual specs — check whether the dev server is running and whether playwright.config has a webServer block to launch it.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L010",
+      "category": "framework",
+      "title": "Use Playwright webServer config instead of skip-guards",
+      "detail": "Adding try/catch around the initial navigation to skip tests when the server is down is an anti-pattern: it converts a real environment failure into a silent pass and removes any signal that the suite is actually exercising the app. Playwright provides a webServer option specifically to start the application before tests and tear it down after, eliminating this class of failure entirely.",
+      "specGuideline": "Configure playwright.config.ts with a webServer entry that runs the app's dev/start command and waits for the port to be ready before tests execute. Do not embed environment-availability checks inside individual specs.",
+      "fixerGuideline": "If you see repeated try/catch + test.skip patterns guarding page.goto across many specs, the real fix is at the config level — add or repair the webServer block rather than propagating skip-guards.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L011",
+      "category": "framework",
+      "title": "Always honor Playwright baseURL via relative paths",
+      "detail": "Hardcoded absolute URLs like http://localhost:3000/login bypass the Playwright config's baseURL setting, so changing ports, hosts, or environments (CI vs local, staging vs prod) requires editing every spec. Relative paths ('/login') automatically resolve against baseURL and make the suite portable across environments.",
+      "specGuideline": "In generated specs, always pass relative paths to page.goto and expect(page).toHaveURL. Set baseURL in playwright.config.ts (driven by an env var like BASE_URL) so a single config change retargets the entire suite.",
+      "fixerGuideline": "Grep specs for the literal 'http://localhost' or 'http://127.0.0.1' — any occurrence is a portability bug. Replace with relative paths and verify baseURL is set in config.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L012",
+      "category": "flow",
+      "title": "Don't paper over environment failures with skip",
+      "detail": "Wrapping navigation in try/catch and calling test.skip when the server is unreachable hides real failures: the suite reports green (skipped) even though nothing was tested. This pattern is particularly insidious because it can land in CI and mask outages or broken deployments behind a passing badge.",
+      "specGuideline": "Reserve test.skip for documented preconditions (feature flags off, browser-specific quirks) — never for transient environmental problems like 'server not running'. Let connection failures surface as hard errors so the operator notices and fixes the environment.",
+      "fixerGuideline": "When a fix proposal says 'skip the test when X is unreachable', reject it and trace upstream: the missing dependency (server, DB, auth provider) is what needs fixing, not the spec.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L013",
+      "category": "timing",
+      "title": "Use domcontentloaded for redirect-heavy auth flows",
+      "detail": "Default page.goto waits for the 'load' event, which can hang on pages that perform immediate client-side redirects (e.g. unauthenticated /dashboard → /login) because resources on the intermediate page may never finish loading. Switching to waitUntil: 'domcontentloaded' lets the navigation resolve as soon as the initial HTML is parsed, then the test can waitForURL on the redirect target.",
+      "specGuideline": "For routes that may redirect (protected pages, auth callbacks, OAuth flows), use page.goto(url, { waitUntil: 'domcontentloaded' }) followed by an explicit page.waitForURL(expectedFinalUrl). Don't rely on networkidle for auth flows that fire background telemetry.",
+      "fixerGuideline": "If a goto on an auth-protected route times out or hangs, suspect a redirect chain — swap to domcontentloaded and add an explicit waitForURL on the destination.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L014",
+      "category": "app-pattern",
+      "title": "Make base URL configurable via env var",
+      "detail": "Tests that bake the dev origin into source can only run in one environment. The conventional fix — reading BASE_URL (or PLAYWRIGHT_BASE_URL) from process.env with a sensible default — lets the same suite target local, CI, and staging without code changes. Combine this with playwright.config.ts baseURL so individual specs stay clean.",
+      "specGuideline": "Set baseURL in playwright.config.ts to process.env.BASE_URL ?? 'http://localhost:<port>'. Specs themselves should use relative paths and not read env vars directly.",
+      "fixerGuideline": "If specs reference process.env.BASE_URL individually, consolidate into config-level baseURL and revert specs to relative paths.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L015",
+      "category": "flow",
+      "title": "Post-login redirect target is not always /dashboard",
+      "detail": "SPAs using auth providers (Auth0, Clerk, Supabase, NextAuth) often redirect to provider callback routes like /auth, /callback, or back to / instead of a canonical /dashboard. Hardcoding waitForURL('/dashboard') after login causes timeouts when the actual authenticated landing route differs.",
+      "specGuideline": "After login submission, assert navigation away from /login (e.g. !/login/) rather than to a specific authenticated path. If a specific page is needed, explicitly goto() it after the auth redirect settles and skip cleanly if it isn't reachable.",
+      "fixerGuideline": "Check the actual URL after login submit by logging page.url() — the app may redirect to /auth, /, or a provider callback instead of /dashboard.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC004"
+      ]
+    },
+    {
+      "id": "L016",
+      "category": "flow",
+      "title": "Protected routes redirect to auth when session not persisted",
+      "detail": "Tests that log in via beforeEach often lose session state when navigating directly to deep protected routes (e.g. /resource/new), because the auth token is stored in memory/cookies that don't survive new page contexts or the route guard rejects before hydration completes. The test then asserts on the intended URL but sees /auth or /login.",
+      "specGuideline": "Before asserting on a protected route URL, check whether the app redirected to an auth path and skip cleanly with a diagnostic if so. Prefer storageState fixtures or a shared authenticated context over per-test login in beforeEach for protected deep-link tests.",
+      "fixerGuideline": "Log page.url() right after goto() to a protected route — if it shows /auth or /login, session persistence is the root cause, not the URL assertion.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L017",
+      "category": "selector",
+      "title": "Heading text rarely matches a single resource-name regex",
+      "detail": "Tests that wait for getByRole('heading', { name: /patients/i }) (or equivalent) fail when the page renders 'Patient List', 'All Patients', 'Manage Records', uses a non-heading element, or shows an empty state with no heading at all. Heading text is a UX decision and changes freely.",
+      "specGuideline": "Avoid waiting on heading text as the page-ready signal. Instead wait on the actual element the test will interact with (the data row, search input, or action button), or use a broad readiness fallback like main/table/role-based selectors with body as last resort.",
+      "fixerGuideline": "Inspect the rendered HTML — the heading text likely differs from the regex, or the page uses div/span instead of h1-h6. Wait on the next interactive element instead.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC007",
+        "TC014"
+      ]
+    },
+    {
+      "id": "L018",
+      "category": "flow",
+      "title": "List/detail tests assume seed data that may not exist",
+      "detail": "Tests for view-detail, search, edit, delete, or upload flows implicitly require pre-existing records. When the database is empty or seed data was not provisioned, the test fails with cryptic locator timeouts rather than a clear precondition error.",
+      "specGuideline": "Always check for at least one row/item before proceeding, and use test.skip() with a clear 'precondition: no seed data' message when empty. Better: create the required record at the start of the test rather than depending on shared seed state.",
+      "fixerGuideline": "Check whether the list page is empty — if no rows render, the test is missing a data-setup step, not a UI bug.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L019",
+      "category": "selector",
+      "title": "Submit buttons render outside their <form> or in portals",
+      "detail": "Modern UI libraries (Radix, MUI, headless UI) often render action buttons in modals, sticky footers, or portaled containers outside the <form> element. Scoping a submit lookup to form.getByRole('button') or form button[type=submit] misses these.",
+      "specGuideline": "Look up submit buttons at page scope with multiple fallbacks: accessible name (save/submit/create), button[type='submit'], and data-testid. Don't constrain to the form element unless you've verified the DOM structure.",
+      "fixerGuideline": "Inspect whether the submit button is inside the form DOM subtree — if it's portaled or rendered in a footer slot, broaden the selector scope to page level.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L020",
+      "category": "timing",
+      "title": "Cumulative waits exceed test timeout on slow routes",
+      "detail": "When each step (login → redirect wait → goto → element wait → assertion) carries its own 10-15s timeout, a single stalled step consumes the entire 30-60s test budget before later assertions can run. Calendar/dashboard pages with heavy resources rarely reach 'load' state quickly.",
+      "specGuideline": "Use waitUntil:'domcontentloaded' for goto() on heavy pages, bound each step with explicit short timeouts (3-5s), and never chain multiple 15s waits. Budget the sum of all waits to stay well under the overall test timeout.",
+      "fixerGuideline": "Sum the timeouts of every waitFor/goto/waitForURL in the test — if they exceed the test timeout, the test will fail on the slowest single step, not on the assertion.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC006"
+      ]
+    },
+    {
+      "id": "L021",
+      "category": "selector",
+      "title": "Unauthenticated unknown routes redirect to auth, not 404",
+      "detail": "Apps with route guards often redirect any unauthenticated request (including /nonexistent) to the auth page before the 404 handler runs. Tests asserting on a 404 page or the original URL fail because the auth redirect intercepts first.",
+      "specGuideline": "When testing 404 behavior, ensure the test runs in an authenticated context so route guards don't intercept. Otherwise accept the auth redirect as valid protection behavior and assert on either the 404 indicator OR the auth redirect.",
+      "fixerGuideline": "Check whether the test is authenticated when visiting the unknown route — if not, the auth guard, not the 404 handler, is responding.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L022",
+      "category": "app-pattern",
+      "title": "Logout and mobile nav often lack accessible affordances",
+      "detail": "Logout is commonly hidden inside avatar dropdowns or icon-only buttons without accessible names, and mobile layouts frequently omit hamburger toggles or <nav> landmarks. These are real source bugs that block automation and harm accessibility, not test issues to work around.",
+      "specGuideline": "When the test cannot find a logout control or mobile nav with role/name selectors, record it as a SOURCE_BUG annotation and skip — do not invent fragile fallback selectors that pass falsely. Require data-testid or accessible name as the contract.",
+      "fixerGuideline": "Before adding more selector fallbacks, check whether the control actually has an accessible name in the DOM — if not, this is a source bug requiring a dev fix, not a spec fix.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L023",
+      "category": "flow",
+      "title": "Auth route paths vary across apps",
+      "detail": "Tests frequently hardcode /login as the auth route, but many apps use alternative paths like /auth, /signin, /account/login, or /users/sign_in. Navigating to a non-existent auth path triggers a redirect to the actual auth route, breaking strict URL assertions and waitForURL calls.",
+      "specGuideline": "Never hardcode a single auth path in URL assertions. Use a regex that accepts common auth route variants (e.g., /\\/(login|auth|signin)/) and prefer asserting on form/input visibility over URL matching to confirm the login page rendered.",
+      "fixerGuideline": "When a URL assertion fails near login, inspect the actual landing URL via page.url() and broaden the regex to cover the app's real auth route.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC002"
+      ]
+    },
+    {
+      "id": "L024",
+      "category": "flow",
+      "title": "Post-login landing routes are app-specific",
+      "detail": "Tests often assume /dashboard or a similar canonical post-login route, but apps redirect to varied landings (/home, /app, /, /workspace, or back to /auth when session fails). Direct goto() to a protected route can also bounce back to auth if session cookies aren't persisted.",
+      "specGuideline": "After login, do not assert a hardcoded post-login URL. Either accept any non-auth route, capture the landing URL dynamically, or assert on a post-login UI element (user menu, logout button) instead of the path.",
+      "fixerGuideline": "Check whether the test bounced back to the auth route — if so, the session likely isn't persisting and the skip-guard should include all known auth paths.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC021"
+      ]
+    },
+    {
+      "id": "L025",
+      "category": "selector",
+      "title": "Semantic landmarks not guaranteed in modern SPAs",
+      "detail": "Tests waiting for <main>, [role=main], <nav>, [role=navigation], or <table> landmarks frequently time out because many SPAs use div-based layouts with className-based styling (e.g., 'sidebar', 'navbar', 'content') and no ARIA roles. Strict landmark waits fail on otherwise rendered pages.",
+      "specGuideline": "Avoid strict waits on semantic HTML5/ARIA landmarks. Use a body-level readiness check plus broadened selectors (class patterns like sidebar/nav/header, data-testid attributes) and gracefully skip when no landmark resolves rather than throwing.",
+      "fixerGuideline": "If a landmark wait times out, replace it with a body-visible check and scope subsequent locators to page rather than the missing container.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L026",
+      "category": "selector",
+      "title": "Submit controls require multi-variant selectors",
+      "detail": "Form submit buttons fail to resolve when tests use a single label (e.g., 'Submit') or assume button[type=submit] is always inside the form. Apps use varied labels (Save, Create, Add, Continue), render the button outside the <form> subtree, or use input[type=submit] / div[role=button].",
+      "specGuideline": "Build submit selectors as a union: button[type=submit], input[type=submit], and multiple text label variants (Save|Submit|Create|Add|Continue). Search at page scope, not within the form element, and allow 15-20s for forms with hydration delays.",
+      "fixerGuideline": "On submit-button timeouts, widen label variants and switch from form-scoped to page-scoped locators before increasing timeouts.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L027",
+      "category": "framework",
+      "title": "Client-only validation may silently accept bad input",
+      "detail": "Tests expecting a visible error message after submitting invalid credentials or invalid form data may find the app navigates away without surfacing any error, because the backend or client lacks proper validation. This is a real app bug but manifests as a confusing test failure where the expected error element never appears.",
+      "specGuideline": "Frame invalid-input assertions defensively: check for either an error alert OR that the URL did not change to a success route. If neither holds, skip with a SOURCE_BUG annotation rather than asserting an error that may never appear.",
+      "fixerGuideline": "If a 'remain on form' or 'error visible' assertion fails after invalid input, inspect whether the app actually navigated forward — this usually indicates missing validation, not a test bug.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L028",
+      "category": "timing",
+      "title": "waitForURL too strict for redirect chains",
+      "detail": "page.waitForURL with a narrow regex fails when apps perform multi-hop redirects (e.g., /login → /auth → /auth?return=...) or append query parameters. The final URL may match semantically but not the pattern, causing 10s timeouts.",
+      "specGuideline": "Prefer waitForURL with permissive patterns that match path prefixes and ignore query strings, or replace it entirely with waitForLoadState('networkidle') followed by a UI-element visibility check.",
+      "fixerGuideline": "When waitForURL times out, log page.url() at the timeout boundary and either broaden the regex or replace the URL wait with a DOM-based readiness signal.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L029",
+      "category": "flow",
+      "title": "Protected routes need auth state verification",
+      "detail": "Tests that navigate directly to protected routes (/patients, /appointments, /settings) after login often land back on the auth page because session cookies didn't persist, login failed silently, or the storageState wasn't loaded. Without an auth-state guard, downstream assertions fail with confusing URL or selector errors.",
+      "specGuideline": "After login, verify auth succeeded before navigating to protected routes — check for a post-login indicator or assert the URL is not an auth path. If still on auth, skip cleanly with a STATE annotation rather than chaining navigations that will all fail.",
+      "fixerGuideline": "On cascading failures across protected routes, check the first post-login URL; if it's an auth route, the root cause is session persistence, not the downstream selectors.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L030",
+      "category": "selector",
+      "title": "Field labels require flexible matching",
+      "detail": "Form fields identified by a single label string fail when apps use synonyms (Patient/Client/Customer), localized text, or omit explicit <label> elements in favor of placeholders or aria-label. Locator.getByLabel often times out on apps that bind labels via for/id mismatches or use floating-label patterns.",
+      "specGuideline": "Build field locators as a fallback chain: getByLabel(regex with synonyms), then getByPlaceholder, then input[name*=keyword], then getByRole('combobox'/'textbox', { name: regex }). Use case-insensitive regexes for label text.",
+      "fixerGuideline": "If a labeled-field locator times out, inspect the DOM for the input's actual name/placeholder/aria attributes and add those as fallback locators before assuming the field is missing.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L031",
+      "category": "timing",
+      "title": "Cumulative waits silently exceed test budget",
+      "detail": "Tests that chain many sequential waitFor/waitForURL/waitForLoadState calls accumulate timeout budgets that can exceed the per-test timeout even when no single wait is unreasonable. Login flow + navigation + field detection + submit + error-race can easily sum to 40-60s on slow environments, leaving no margin and causing opaque 'Test timeout exceeded' failures with no clear root cause.",
+      "specGuideline": "Budget total wait time per test: sum all waitFor timeouts and keep the total under ~50% of the test timeout. Prefer one bounded waitForResponse or waitForURL over multiple chained waitForLoadState calls, and avoid redundant load-state waits after explicit element waits.",
+      "fixerGuideline": "Add up all waitFor/waitForURL/waitForLoadState timeouts in the test — if they sum to more than half the test timeout, the test is over-budgeted regardless of which step actually hangs.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC005",
+        "TC044",
+        "TC045",
+        "TC045"
+      ]
+    },
+    {
+      "id": "L032",
+      "category": "timing",
+      "title": "Hard waitFor on optional elements causes timeouts",
+      "detail": "Using waitFor() with multi-second timeouts on elements that may legitimately not exist (optional form fields, conditional validation messages, feature-gated UI) burns the full timeout when the element is absent rather than failing fast. This is especially harmful inside loops or compounded with other waits.",
+      "specGuideline": "For optional/conditional elements, use bounded isVisible() checks (≤2s) with skip-guards instead of waitFor(). Reserve waitFor with longer timeouts only for elements that must appear for the test scenario to be valid.",
+      "fixerGuideline": "Look for waitFor calls on elements whose existence depends on app state or feature availability — convert them to isVisible with a short timeout and test.skip when absent.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L033",
+      "category": "timing",
+      "title": "Chained .or() locators are slow to resolve",
+      "detail": "Playwright's chained .or() locators evaluate each alternative sequentially and can be significantly slower than a single attribute-based selector, especially when early alternatives don't match. Combined with long waitFor timeouts, they compound cumulative wait time.",
+      "specGuideline": "Prefer a single specific selector (attribute, role+name, test-id) over chained .or() locators with 3+ alternatives. If multiple selectors are truly needed, use a CSS selector with comma-separated alternatives which resolves in a single query.",
+      "fixerGuideline": "Check for locator chains using .or() with multiple alternatives — replace with a direct attribute selector or test-id when possible.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L034",
+      "category": "flow",
+      "title": "Tests depend on unguaranteed seed data",
+      "detail": "Tests that require pre-existing records (encounters, appointments, transactions) to exercise downstream flows fail unpredictably when the seed data is missing, often manifesting as timeouts on element-discovery waits rather than clear preconditions failures.",
+      "specGuideline": "Either create required data within the test setup, or add an explicit precondition check at the start that calls test.skip with a clear message when the required record is absent. Never assume seed data exists across test runs.",
+      "fixerGuideline": "When a test times out searching for list items or detail-page elements, verify whether the required record exists in the app before assuming it's a selector or timing issue.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L035",
+      "category": "timing",
+      "title": "Submit clicks hang waiting for navigation that never happens",
+      "detail": "Clicking a submit button on a form with validation errors often does not navigate, but Playwright's auto-waiting may stall if the click handler is configured to wait for navigation or network idle. This causes the test to consume its full timeout budget on the click itself.",
+      "specGuideline": "Use force-click with a short timeout and a catch for submit buttons when validation failure is a possible outcome. After the click, race a validation-detection check against a navigation check rather than waiting for one specific outcome.",
+      "fixerGuideline": "If a test hangs on a submit click, check whether the click is awaiting navigation or load-state that won't happen on validation failure — convert to bounded click + race between possible outcomes.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L036",
+      "category": "timing",
+      "title": "Iterating dynamic field lists without per-iteration caps",
+      "detail": "Loops that iterate over discovered elements (required fields, table rows, list items) and perform awaited attribute reads or visibility checks per item can hang indefinitely if any single element is slow, consuming the entire test budget on a single bad iteration.",
+      "specGuideline": "Cap loop iterations at a reasonable upper bound (e.g., 20 items) and apply a short per-iteration timeout to every awaited operation inside the loop. Never let an unbounded loop perform unbounded awaits.",
+      "fixerGuideline": "When a test times out partway through processing a list, check whether the loop has iteration limits and per-call timeouts — a single slow element can otherwise consume the entire budget.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L037",
+      "category": "framework",
+      "title": "HTML5 native validation produces no DOM signal",
+      "detail": "Browser-native HTML5 form validation (required, type=email, pattern) keeps focus on the invalid field but does not produce custom error elements, aria-invalid attributes, or alert roles that selectors can detect. Tests waiting on a visible error message after an empty-form submit will hang and time out.",
+      "specGuideline": "For validation tests, detect native validation by checking that the form did not submit (URL unchanged, no navigation event) and/or by querying the input's :invalid pseudo-class or validity property via evaluate(). Do not rely solely on visible error messages or aria-invalid attributes.",
+      "fixerGuideline": "If a validation test times out waiting for an error message, the app may be using native HTML5 validation — check via input.evaluate(el => el.validity.valid) or assert no navigation occurred instead.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L038",
+      "category": "timing",
+      "title": "Raising test timeout masks structural wait problems",
+      "detail": "Increasing the per-test timeout (60s → 120s) does not fix tests that fail due to cumulative waits, hard waits on absent elements, or hangs on submit clicks — the underlying wait still consumes the full extended budget. This is a symptom-treating fix that delays rather than resolves the failure.",
+      "specGuideline": "Treat test timeout increases as a last resort only after auditing individual waits. If a test legitimately needs more than the default timeout, the underlying waits should still each be bounded and the total should fit within the new budget with margin.",
+      "fixerGuideline": "If raising the timeout didn't fix the test, the problem is a specific hanging wait — find which step consumes the most time and convert it to a bounded check, don't raise the timeout further.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L039",
+      "category": "timing",
+      "title": "Cumulative waitFor budgets exceed test timeout",
+      "detail": "Tests that chain multiple waitFor/waitForURL/waitForLoadState calls with multi-second timeouts (e.g. 10s + 15s + 10s + 5s) routinely exceed the per-test budget because each wait runs sequentially and consumes its full timeout on slow steps. Even individually reasonable timeouts compound past 60s/90s/120s test budgets when any single step is slow.",
+      "specGuideline": "Budget cumulative waits to stay well under the test timeout (target ≤60% of budget). Prefer one bounded wait per critical step with tight timeouts (3-8s), and race independent waits with Promise.race instead of sequencing them. Never use Playwright's default 30s action timeout for fill/click/goto — always pass explicit short timeouts.",
+      "fixerGuideline": "Sum every waitFor/waitForURL/waitForLoadState/fill/click timeout in the spec; if the total approaches the test timeout, the failure is budget exhaustion, not a real bug. Tighten or remove redundant waits before changing selectors.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC010",
+        "TC016",
+        "TC043",
+        "TC044",
+        "TC020",
+        "TC018"
+      ]
+    },
+    {
+      "id": "L040",
+      "category": "selector",
+      "title": "Chained .or() locators resolve slowly",
+      "detail": "Playwright .or() locator chains with many alternatives (e.g. role().or(testid).or(text).or(css)) resolve each alternative sequentially against the default action timeout, so a chain of 4+ alternatives can consume 30s+ when the page is slow or none match. Strict-mode matches across the chain also cause failures when alternatives match multiple elements.",
+      "specGuideline": "Prefer a single comma-separated CSS selector or one direct attribute selector over chained .or() alternatives. When fallbacks are needed, iterate candidates explicitly with bounded isVisible(timeout: 1500-2000ms) probes so each candidate fails fast. Always anchor selectors to the smallest containing scope (modal, form, sidebar) to avoid strict-mode collisions.",
+      "fixerGuideline": "If a locator timeout appears with chained .or() in the spec, replace with a single selector + bounded candidate loop before assuming the element is missing.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC014",
+        "TC027",
+        "TC034",
+        "TC043",
+        "TC045",
+        "TC011",
+        "TC014",
+        "TC016",
+        "TC018",
+        "TC023",
+        "TC027",
+        "TC033",
+        "TC033",
+        "TC034",
+        "TC039",
+        "TC027",
+        "TC039",
+        "TC043",
+        "TC043"
+      ]
+    },
+    {
+      "id": "L041",
+      "category": "framework",
+      "title": "waitForLoadState('load') hangs on SPAs",
+      "detail": "Single-page apps with persistent WebSocket connections, long-polling, or analytics beacons never fire the 'load' event, so waitForLoadState('load') blocks until its timeout. Function-predicate waitForURL also misses SPA navigation when the app updates the route via history.pushState without a real navigation event.",
+      "specGuideline": "Use waitForLoadState('domcontentloaded') instead of 'load' for SPA pages, or skip the load wait entirely and assert on a visible DOM signal. For post-navigation URL checks in SPAs, prefer waitForFunction polling window.location.pathname over waitForURL with a predicate function.",
+      "fixerGuideline": "When a test hangs at waitForLoadState or waitForURL on a known SPA route, swap to domcontentloaded or waitForFunction polling before extending timeouts.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L042",
+      "category": "flow",
+      "title": "Click + waitForURL race loses navigation events",
+      "detail": "Awaiting click() then calling waitForURL() can miss the navigation if it fires between the two calls; conversely Promise.all([click, waitForURL]) can resolve waitForURL before the click triggers navigation, especially with auth-redirect chains that pass through intermediate routes (e.g. /auth/callback) before landing on the protected route.",
+      "specGuideline": "Set up waitForURL as a promise before clicking, then await both: const nav = page.waitForURL(...); await submit.click(); await nav. Use anchored regexes (^/login$) instead of substring matches to avoid false positives on intermediate routes containing 'auth' or 'login'. Always allow auth-callback paths in post-login URL predicates.",
+      "fixerGuideline": "If waitForURL times out after a click, check whether the test races click+wait incorrectly or whether the URL regex excludes legitimate redirect-chain intermediates.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC010"
+      ]
+    },
+    {
+      "id": "L043",
+      "category": "flow",
+      "title": "Spec title doesn't match spec body",
+      "detail": "Generated specs commonly drift where the test title describes one scenario (e.g. 'Sign and lock encounter', 'Mobile responsive layout') but the body exercises a completely different flow (e.g. add prescription, email validation). Tests then time out chasing UI affordances that don't exist on the wrong page, and coverage reports lie about what was actually verified.",
+      "specGuideline": "Before writing the test body, restate the test title in a comment and verify every assertion exercises that exact behavior. The first navigation in the body should land on the page the title implies, not a tangentially related route. Never leave stale logic from a previous scenario in a renamed spec.",
+      "fixerGuideline": "Always read the test title and compare against the actual navigation and assertions; if they describe different flows, rewrite the body to match the title rather than debugging the wrong scenario.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC033",
+        "TC034",
+        "TC044",
+        "TC043"
+      ]
+    },
+    {
+      "id": "L044",
+      "category": "app-pattern",
+      "title": "Submit buttons disabled until form is valid",
+      "detail": "Many modern forms disable the submit button until all required fields contain valid input, so asserting toBeEnabled() on an empty form always fails. The button state is a function of form state, not page load.",
+      "specGuideline": "Before asserting toBeEnabled() on a submit button, fill all required fields with valid sample input. Use toBeVisible() for initial render checks and reserve toBeEnabled() for after-fill state assertions. To verify the disabled-when-empty behavior, assert toBeDisabled() on the empty form first.",
+      "fixerGuideline": "If toBeEnabled() fails on a submit button, check whether the form has unfilled required inputs before assuming the button selector is wrong.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": []
+    },
+    {
+      "id": "L045",
+      "category": "flow",
+      "title": "Skipping on STATE failures hides real bugs",
+      "detail": "Tests that wrap auth/precondition failures in test.skip() silently pass when the application is broken, defeating the point of the test suite. Login timeouts in particular often indicate invalid seeded credentials or a broken auth flow, not a transient issue worth skipping.",
+      "specGuideline": "Never use test.skip() on STATE failures (auth, missing seed data, redirect timeouts). Instead, throw with a diagnostic message that includes the actual URL and what was expected, so failures surface loudly. Reserve skip for true SOURCE_BUG cases where a feature provably doesn't exist in the app.",
+      "fixerGuideline": "If a spec contains test.skip() guards around login or navigation, remove them and replace with explicit assertions or throws — silent skips mask the real failure.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC028",
+        "TC030"
+      ]
+    },
+    {
+      "id": "L046",
+      "category": "timing",
+      "title": "Default 30s action timeout on unbounded fill/click/goto",
+      "detail": "Playwright's fill(), click(), and goto() inherit a 30s default action timeout when no explicit timeout is passed. Stacking even 2-3 unbounded actions on a slow page can consume the entire test budget before any assertion runs, and post-submit getAttribute/evaluate calls on stale locators also inherit the default.",
+      "specGuideline": "Always pass an explicit timeout to fill, click, goto, and post-action assertions (typical: fill 3-5s, click 5s, goto 10-15s). Use noWaitAfter: true on submit clicks that trigger navigation, and check the URL before running follow-up queries on potentially stale locators.",
+      "fixerGuideline": "If a test times out with no specific Playwright error, audit unbounded fill/click/goto calls first — adding explicit short timeouts often resolves it without other changes.",
+      "seenCount": 1,
+      "firstSeen": "2026-05-26",
+      "lastSeen": "2026-05-26",
+      "sources": [
+        "TC045",
+        "TC016"
+      ]
+    }
+  ]
 }

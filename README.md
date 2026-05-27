@@ -2,13 +2,17 @@
 
 An AI-powered Playwright test generation, execution, and self-healing pipeline. Point it at any web application and it will:
 
+**Core objective:** the agent aims for **maximum coverage** of the target application — every route, every entity's CRUD operations, happy paths *and* realistic failure modes, permission boundaries, form validation, navigation, search/filter/sort, and responsive layouts where applicable. It does not stop at a minimum quota.
+
 1. **Discover** routes, `data-testid` selectors, and framework details from your source code
-2. **Plan** a full E2E test suite via Claude — prioritised by user flow and dependency order
-3. **Generate** self-contained Playwright TypeScript spec files — one per test case
-4. **Run** all tests with live terminal output
-5. **Fix** failures automatically — AI root-cause analysis patches broken specs (never touches app source)
-6. **Learn** — accumulates patterns in `agents/learnings.json` and reuses them on future runs
-7. **Report** — produces a Markdown coverage report with any discovered application bugs flagged for developers
+2. **Bootstrap auth** — if a register/signup flow exists, register a fresh user and seed the credentials into `.env` so every downstream auth-required test runs against a known-good account
+3. **Bootstrap seed data** — walk every `/new`/`/create`/`/add` route and populate the DB with one record per entity, so list/view/edit/search tests find data to act on
+4. **Plan** a full E2E test suite via Claude — prioritised by user flow and dependency order, sized for maximum coverage of the discovered surface area
+5. **Generate** self-contained Playwright TypeScript spec files — one per test case
+6. **Run** all tests with live terminal output
+7. **Fix** failures automatically — AI root-cause analysis patches broken specs (never touches app source)
+8. **Learn** — accumulates patterns in `agents/learnings.json` and reuses them on future runs
+9. **Report** — produces a Markdown coverage report with any discovered application bugs prominently flagged for developer review
 
 ---
 
@@ -125,7 +129,35 @@ pnpm --filter @qa/agents run run-only
 | `tests/generated/tc*.spec.ts` | Generated Playwright spec files |
 | `tests/generated/coverage-report.md` | Human-readable coverage report |
 | `tests/generated/coverage-report.json` | Machine-readable coverage data |
+| `tests/generated/logs/run-<timestamp>.log` | Full terminal transcript of the run (agent + Playwright output) |
+| `tests/playwright-report/` | Merged HTML report — every test from every fix round with final status, error messages, screenshots, traces |
 | `agents/learnings.json` | Accumulated patterns — **commit this file** so learnings persist across CI runs |
+
+---
+
+## Viewing reports
+
+After a run completes, four artefacts give you different angles on the results:
+
+```bash
+# 1. Markdown coverage summary (open in any editor / Markdown viewer)
+cat tests/generated/coverage-report.md
+code tests/generated/coverage-report.md     # or your editor of choice
+
+# 2. Machine-readable coverage data (for CI scripts, dashboards)
+cat tests/generated/coverage-report.json | jq .
+
+# 3. Interactive HTML report — every test, every fix round, with failure traces
+pnpm -C tests exec playwright show-report   # opens http://localhost:9323
+# or directly:
+npx -p @playwright/test playwright show-report tests/playwright-report
+
+# 4. Full run log (agent output + Playwright output, one file per run)
+less tests/generated/logs/run-*.log         # all past runs
+less "$(ls -t tests/generated/logs/run-*.log | head -1)"   # just the latest
+```
+
+**Tip:** the HTML report is the best place to debug failures — click any failed test for the error message, stack trace, screenshot, and (on retried tests) the Playwright trace viewer.
 
 ---
 
@@ -182,6 +214,26 @@ After each run the agent calls Claude to extract generalizable patterns from fai
   ]
 }
 ```
+
+---
+
+## Auth bootstrap
+
+Phase 1.5 looks for a register/signup route in your app source. If it finds one:
+
+1. Generates fresh credentials (`qaagent_<timestamp>@example.com` + strong password)
+2. Generates and runs a one-off Playwright spec that registers that user
+3. On success, writes `TEST_USERNAME` / `TEST_PASSWORD` / `TEST_EMAIL` to `.env`
+4. Deletes the bootstrap spec so subsequent phases don't re-register
+
+Every downstream auth-required test then uses the seeded credentials.
+
+**Opting out:** set `TEST_USERNAME` in `.env` to any real account (i.e. not the
+`your_test_username` placeholder) and the bootstrap will skip. Setting
+`FORCE_REGISTER=true` overrides this and re-registers on every run.
+
+If the bootstrap fails (no register route, network issue, etc.) the pipeline
+continues with whatever credentials are already in `.env`.
 
 ---
 

@@ -1,15 +1,15 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { createMessage } from "./ai-client";
 import * as fs from "fs";
 import * as path from "path";
+import { formatSeedStateForPrompt } from "./seed-state";
 import type {
   TestRunResult,
   TestFix,
   FailureClass,
+  SeedState,
   AppContext,
   BugReport,
 } from "./types";
-
-const client = new Anthropic();
 const TESTS_DIR = path.join(__dirname, "../../tests/generated");
 const MODULES_PATH = process.env.APP_MODULES_DIR ?? "";
 
@@ -21,6 +21,7 @@ export async function analyseAndFix(
   failures: TestRunResult[],
   ctx: AppContext,
   round: number,
+  seedState: SeedState | null,
   learnings?: string
 ): Promise<{ fixes: TestFix[]; bugs: BugReport[] }> {
   const fixes: TestFix[] = [];
@@ -54,6 +55,7 @@ export async function analyseAndFix(
       sourceExcerpts,
       screenshotSummary,
       round,
+      seedState,
       learnings
     );
 
@@ -118,11 +120,14 @@ async function callFixer(
   sourceExcerpts: string,
   screenshotSummary: string,
   round: number,
+  seedState: SeedState | null,
   learnings?: string
 ): Promise<TestFix> {
   const learningsSection = learnings
     ? `\n${learnings}\n`
     : "";
+
+  const seedStateBlock = formatSeedStateForPrompt(seedState);
 
   const prompt = `You are a Playwright debugging expert.
 
@@ -131,6 +136,16 @@ You must NEVER suggest changes to the application source code. Your role is:
 1. Fix the test spec so it correctly tests what the application currently provides
 2. If the application is genuinely broken (missing a required attribute, wrong behaviour), classify as SOURCE_BUG and describe the bug — the developer will fix it manually
 3. For SOURCE_BUG: still provide a specPatch that gracefully handles the missing element (e.g. skip the broken assertion), so the test fails cleanly rather than throwing
+
+## NO-SKIP POLICY
+\`test.skip()\` / \`test.fixme()\` is ONLY permitted when the root cause is SOURCE_BUG. For every other failure class (SELECTOR_STALE, STRICT_MODE, TIMING, STATE, URL_WRONG, FLAKY, UNKNOWN) you MUST patch the spec to actually exercise the flow. In particular:
+- **STATE failures** (missing session, no patient/record, empty list, login redirect) — do NOT skip. Patch the spec to use the seeded credentials/markers below: search the list page for the seeded marker, re-login if the session was lost, navigate via the UI to set up the precondition.
+- **URL_WRONG** — patch the spec to navigate via a link click or correct the URL pattern using the route info; do not skip.
+- **TIMING / STRICT_MODE / SELECTOR_STALE** — patch the wait or selector; do not skip.
+
+If you propose a fix that adds \`test.skip()\` without a SOURCE_BUG classification, you have failed the task — return a real fix instead.
+
+${seedStateBlock}
 
 ## Failing Test
 Spec ID: ${failure.specId}
@@ -157,10 +172,10 @@ ${sourceExcerpts || "(none identified)"}
 ${failure.errorStack ?? "(none)"}
 ${learningsSection}
 ## Common failure patterns to check
-- STRICT_MODE: locator resolves to N elements — scope to parent container
-- TIMING: SSR streaming — wait for toBeEnabled() not just toBeVisible() before clicking
-- STATE: server action POST never detected — use page.waitForResponse() pattern; or missing cart precondition
-- URL_WRONG: checkout form uses ?step=address query param; parallel routes need soft-nav via link click
+- STRICT_MODE: locator resolves to N elements — scope to nearest parent container
+- TIMING: element not ready — wait for toBeEnabled() not just toBeVisible() before interacting
+- STATE: precondition not met — auth missing, required data not created, or async action not awaited
+- URL_WRONG: page not found, requires query params, or needs soft-nav via link click instead of direct goto
 - SOURCE_BUG: component renders but data-testid attribute missing from inner element (not wrapper div)
 - FLAKY: parallel test load — scope selectors more tightly, increase modal timeouts to 30s
 
@@ -180,17 +195,13 @@ Respond with ONLY a valid JSON object:
   "explanation": "one sentence on the fix (for spec) or the required developer action (for source bugs)"
 }`;
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+  const response = await createMessage({
     max_tokens: 2000,
     system: "You are a Playwright debugging expert. Respond ONLY with a valid JSON object. No markdown fences.",
     messages: [{ role: "user", content: prompt }],
   });
 
-  const raw = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
+  const raw = response.content[0].text
     .replace(/^```(?:json)?\s*/m, "")
     .replace(/\s*```\s*$/m, "")
     .trim();

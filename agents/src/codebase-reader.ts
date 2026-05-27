@@ -16,8 +16,8 @@ import type { AppContext, RouteInfo, SelectorInfo } from "./types";
 // Optional:
 //   APP_PACKAGE_JSON — absolute path to the app's package.json
 //                      (used for framework detection; auto-detected if omitted)
-//   PRODUCT_HANDLES  — comma-separated item slugs seeded in the database
-//                      e.g. "t-shirt,sweatshirt,jeans"
+//   SEED_DATA        — comma-separated test record identifiers seeded in the database
+//                      e.g. "patient-001,doctor-001" or "record-abc,report-xyz"
 // ─────────────────────────────────────────────────────────────────────────────
 
 function requireEnv(name: string): string {
@@ -85,7 +85,7 @@ function extractTestIds(content: string): string[] {
 
 function extractRoutes(appDir: string, countryCode: string): RouteInfo[] {
   const routes: RouteInfo[] = [];
-  const sampleHandle = (process.env.PRODUCT_HANDLES ?? "product").split(",")[0];
+  const sampleHandle = (process.env.SEED_DATA ?? "item").split(",")[0];
 
   function walk(dir: string, prefix: string = "") {
     if (!fs.existsSync(dir)) return;
@@ -205,8 +205,8 @@ export function readCodebaseContext(): AppContext {
     ([testId, context]) => ({ testId, context })
   );
 
-  const productHandles = process.env.PRODUCT_HANDLES
-    ? process.env.PRODUCT_HANDLES.split(",").map((s) => s.trim()).filter(Boolean)
+  const seedData = process.env.SEED_DATA
+    ? process.env.SEED_DATA.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
 
   return {
@@ -214,7 +214,7 @@ export function readCodebaseContext(): AppContext {
     renderingModel,
     routes,
     selectors,
-    productHandles,
+    seedData,
     baseUrl: process.env.BASE_URL ?? "http://localhost:3000",
     countryCode,
   };

@@ -1,6 +1,6 @@
-import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { spawnTeed } from "./logger";
 import type { TestRunResult, TestStatus, FailureClass } from "./types";
 
 const TESTS_DIR = path.join(__dirname, "../../tests");
@@ -58,15 +58,24 @@ export interface RunSummary {
  * Uses playwright.config.ts reporters — list reporter streams live output; json reporter
  * writes structured results to test-results/results.json for programmatic parsing.
  */
-export function runPlaywright(
+export async function runPlaywright(
   round: number,
   grepPattern?: string
-): RunSummary {
+): Promise<RunSummary> {
   const resultsDir = path.join(TESTS_DIR, "test-results");
   fs.mkdirSync(resultsDir, { recursive: true });
 
   // Remove stale results file so we never silently read data from a previous run
   if (fs.existsSync(RESULTS_FILE)) fs.unlinkSync(RESULTS_FILE);
+
+  // Each round writes its own blob zip; on round 0 wipe leftovers from prior agent runs
+  // so the final merge-reports step doesn't include stale rounds.
+  const blobDir = path.join(TESTS_DIR, "test-results", "blob");
+  if (round === 0 && fs.existsSync(blobDir)) {
+    fs.rmSync(blobDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(blobDir, { recursive: true });
+  const blobName = `round-${round}.zip`;
 
   const args = [
     "playwright",
@@ -78,12 +87,18 @@ export function runPlaywright(
     args.push(`--grep=${grepPattern}`);
   }
 
-  // stdio:'inherit' lets the list reporter stream each test result live to the terminal.
-  // JSON results are written to RESULTS_FILE by the json reporter in playwright.config.ts.
+  // spawnTeed pipes child output through process.stdout/stderr so the file logger
+  // captures it. The blob reporter (configured with outputDir=test-results/blob)
+  // would normally wipe that dir on every run, which would lose earlier rounds —
+  // PWTEST_BLOB_DO_NOT_REMOVE=1 keeps siblings intact so each round-N.zip persists.
   const t0 = Date.now();
-  spawnSync("npx", args, {
+  await spawnTeed("npx", args, {
     cwd: TESTS_DIR,
-    stdio: "inherit",
+    env: {
+      ...process.env,
+      QA_BLOB_NAME: blobName,
+      PWTEST_BLOB_DO_NOT_REMOVE: "1",
+    },
   });
   const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\n      ─── completed in ${elapsedSec}s ───`);
@@ -144,7 +159,7 @@ function collectResults(
       const failingLine = firstError?.location?.line;
       const screenshot = result?.attachments?.find((a) => a.name === "screenshot");
 
-      // Extract TC ID from the spec title (e.g. "TC006 - Remove item from cart")
+      // Extract TC ID from the spec title (e.g. "TC006 - User login with valid credentials")
       const idMatch = spec.title.match(/TC\d+/i);
       const specId = idMatch ? idMatch[0].toUpperCase() : spec.title.slice(0, 10);
 
@@ -205,4 +220,40 @@ export function failingIds(results: TestRunResult[]): string[] {
  */
 export function buildGrepPattern(ids: string[]): string {
   return ids.join("|");
+}
+
+/**
+ * Merge every per-round blob zip into one unified HTML report.
+ *
+ * After the fix loop:
+ *   - Round 0's blob has results for every generated spec
+ *   - Each fix round's blob has results only for the previously-failing tests
+ *   - merge-reports overlays later rounds onto earlier ones — for any test that
+ *     appears in multiple rounds, the latest result wins
+ *
+ * Result: `tests/playwright-report/index.html` shows every test case from the
+ * suite with its final status (and full failure details for anything still failing).
+ * View it with `pnpm -C tests exec playwright show-report`.
+ */
+export async function mergeBlobReports(): Promise<void> {
+  const blobDir = path.join(TESTS_DIR, "test-results", "blob");
+  if (!fs.existsSync(blobDir) || fs.readdirSync(blobDir).length === 0) {
+    console.log("      No blob reports found — skipping HTML merge.");
+    return;
+  }
+
+  const reportDir = path.join(TESTS_DIR, "playwright-report");
+  if (fs.existsSync(reportDir)) {
+    fs.rmSync(reportDir, { recursive: true, force: true });
+  }
+
+  const proc = await spawnTeed(
+    "npx",
+    ["playwright", "merge-reports", "test-results/blob", "--reporter=html"],
+    { cwd: TESTS_DIR },
+  );
+
+  if (proc.status !== 0) {
+    console.log(`      Warning: merge-reports exited with code ${proc.status}.`);
+  }
 }

@@ -1,0 +1,988 @@
+{
+  "testCases": [
+    {
+      "id": "TC001",
+      "title": "Load homepage successfully",
+      "pageUrl": "http://localhost:3000/",
+      "priority": "high",
+      "category": "smoke",
+      "dependsOn": [],
+      "rationale": "App must boot",
+      "stateSetup": [
+        "App running"
+      ],
+      "steps": [
+        "Navigate to base URL",
+        "Wait for load",
+        "Verify no error"
+      ],
+      "expectedOutcome": "Page renders without errors",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC002",
+      "title": "Detect login page presence",
+      "pageUrl": "http://localhost:3000/login",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Auth entry point",
+      "stateSetup": [
+        "App running"
+      ],
+      "steps": [
+        "Navigate to /login",
+        "Verify form fields visible"
+      ],
+      "expectedOutcome": "Login form renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC003",
+      "title": "Login with valid credentials",
+      "pageUrl": "http://localhost:3000/login",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Core auth flow",
+      "stateSetup": [
+        "Valid user exists"
+      ],
+      "steps": [
+        "Enter credentials",
+        "Submit",
+        "Verify redirect"
+      ],
+      "expectedOutcome": "User logged in and redirected",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC004",
+      "title": "Login fails with invalid password",
+      "pageUrl": "http://localhost:3000/login",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Security check",
+      "stateSetup": [
+        "App running"
+      ],
+      "steps": [
+        "Enter wrong password",
+        "Submit",
+        "Verify error"
+      ],
+      "expectedOutcome": "Error message displayed",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC005",
+      "title": "Login fails with empty fields",
+      "pageUrl": "http://localhost:3000/login",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Form validation",
+      "stateSetup": [
+        "App running"
+      ],
+      "steps": [
+        "Submit empty form",
+        "Verify validation"
+      ],
+      "expectedOutcome": "Required field errors shown",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC006",
+      "title": "Unauthorized access redirects to login",
+      "pageUrl": "http://localhost:3000/dashboard",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Route protection",
+      "stateSetup": [
+        "Not logged in"
+      ],
+      "steps": [
+        "Visit protected route",
+        "Verify redirect"
+      ],
+      "expectedOutcome": "Redirected to login",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC007",
+      "title": "Dashboard loads after login",
+      "pageUrl": "http://localhost:3000/dashboard",
+      "priority": "high",
+      "category": "navigation",
+      "dependsOn": [
+        "TC003"
+      ],
+      "rationale": "Post-login landing",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Login",
+        "Verify dashboard"
+      ],
+      "expectedOutcome": "Dashboard renders",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC008",
+      "title": "Navigate to patients list",
+      "pageUrl": "http://localhost:3000/patients",
+      "priority": "high",
+      "category": "patients",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Core EMR feature",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Click patients nav",
+        "Verify list"
+      ],
+      "expectedOutcome": "Patient list visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC009",
+      "title": "Create new patient",
+      "pageUrl": "http://localhost:3000/patients/new",
+      "priority": "high",
+      "category": "patients",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Core CRUD",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open form",
+        "Fill fields",
+        "Submit"
+      ],
+      "expectedOutcome": "Patient created",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC010",
+      "title": "Validate required patient fields",
+      "pageUrl": "http://localhost:3000/patients/new",
+      "priority": "medium",
+      "category": "patients",
+      "dependsOn": [
+        "TC009"
+      ],
+      "rationale": "Data integrity",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Submit empty form",
+        "Verify errors"
+      ],
+      "expectedOutcome": "Validation errors shown",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC011",
+      "title": "View patient details",
+      "pageUrl": "http://localhost:3000/patients/:id",
+      "priority": "high",
+      "category": "patients",
+      "dependsOn": [
+        "TC009"
+      ],
+      "rationale": "Read flow",
+      "stateSetup": [
+        "Patient exists"
+      ],
+      "steps": [
+        "Click patient row",
+        "Verify details"
+      ],
+      "expectedOutcome": "Patient details visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC012",
+      "title": "Edit patient record",
+      "pageUrl": "http://localhost:3000/patients/:id/edit",
+      "priority": "high",
+      "category": "patients",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Update flow",
+      "stateSetup": [
+        "Patient exists"
+      ],
+      "steps": [
+        "Open edit",
+        "Change field",
+        "Save"
+      ],
+      "expectedOutcome": "Patient updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC013",
+      "title": "Delete patient record",
+      "pageUrl": "http://localhost:3000/patients/:id",
+      "priority": "medium",
+      "category": "patients",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Delete flow",
+      "stateSetup": [
+        "Patient exists"
+      ],
+      "steps": [
+        "Click delete",
+        "Confirm",
+        "Verify removed"
+      ],
+      "expectedOutcome": "Patient deleted",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC014",
+      "title": "Search patients by name",
+      "pageUrl": "http://localhost:3000/patients",
+      "priority": "medium",
+      "category": "patients",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Search UX",
+      "stateSetup": [
+        "Patients exist"
+      ],
+      "steps": [
+        "Type in search",
+        "Verify filter"
+      ],
+      "expectedOutcome": "Results filtered",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC015",
+      "title": "Filter patients by status",
+      "pageUrl": "http://localhost:3000/patients",
+      "priority": "low",
+      "category": "patients",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Filter UX",
+      "stateSetup": [
+        "Patients exist"
+      ],
+      "steps": [
+        "Apply filter",
+        "Verify results"
+      ],
+      "expectedOutcome": "List filtered",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC016",
+      "title": "Paginate patient list",
+      "pageUrl": "http://localhost:3000/patients",
+      "priority": "low",
+      "category": "patients",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Pagination",
+      "stateSetup": [
+        "Many patients"
+      ],
+      "steps": [
+        "Click next page",
+        "Verify update"
+      ],
+      "expectedOutcome": "Next page shown",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC017",
+      "title": "Navigate to appointments",
+      "pageUrl": "http://localhost:3000/appointments",
+      "priority": "high",
+      "category": "appointments",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Core feature",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Click appointments",
+        "Verify list"
+      ],
+      "expectedOutcome": "Appointments list visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC018",
+      "title": "Create new appointment",
+      "pageUrl": "http://localhost:3000/appointments/new",
+      "priority": "high",
+      "category": "appointments",
+      "dependsOn": [
+        "TC017",
+        "TC009"
+      ],
+      "rationale": "Scheduling flow",
+      "stateSetup": [
+        "Patient exists"
+      ],
+      "steps": [
+        "Open form",
+        "Select patient/time",
+        "Submit"
+      ],
+      "expectedOutcome": "Appointment created",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC019",
+      "title": "View appointment details",
+      "pageUrl": "http://localhost:3000/appointments/:id",
+      "priority": "medium",
+      "category": "appointments",
+      "dependsOn": [
+        "TC018"
+      ],
+      "rationale": "Read flow",
+      "stateSetup": [
+        "Appointment exists"
+      ],
+      "steps": [
+        "Click appointment",
+        "Verify details"
+      ],
+      "expectedOutcome": "Details visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC020",
+      "title": "Reschedule appointment",
+      "pageUrl": "http://localhost:3000/appointments/:id/edit",
+      "priority": "medium",
+      "category": "appointments",
+      "dependsOn": [
+        "TC019"
+      ],
+      "rationale": "Update flow",
+      "stateSetup": [
+        "Appointment exists"
+      ],
+      "steps": [
+        "Open edit",
+        "Change time",
+        "Save"
+      ],
+      "expectedOutcome": "Appointment updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC021",
+      "title": "Cancel appointment",
+      "pageUrl": "http://localhost:3000/appointments/:id",
+      "priority": "medium",
+      "category": "appointments",
+      "dependsOn": [
+        "TC019"
+      ],
+      "rationale": "Cancellation",
+      "stateSetup": [
+        "Appointment exists"
+      ],
+      "steps": [
+        "Click cancel",
+        "Confirm",
+        "Verify status"
+      ],
+      "expectedOutcome": "Appointment cancelled",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC022",
+      "title": "Prevent double-booking same slot",
+      "pageUrl": "http://localhost:3000/appointments/new",
+      "priority": "medium",
+      "category": "appointments",
+      "dependsOn": [
+        "TC018"
+      ],
+      "rationale": "Business rule",
+      "stateSetup": [
+        "Slot booked"
+      ],
+      "steps": [
+        "Book same slot",
+        "Verify error"
+      ],
+      "expectedOutcome": "Conflict error shown",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC023",
+      "title": "Navigate to encounters",
+      "pageUrl": "http://localhost:3000/encounters",
+      "priority": "high",
+      "category": "encounters",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Clinical core",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open encounters",
+        "Verify list"
+      ],
+      "expectedOutcome": "Encounters list visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC024",
+      "title": "Create new encounter",
+      "pageUrl": "http://localhost:3000/encounters/new",
+      "priority": "high",
+      "category": "encounters",
+      "dependsOn": [
+        "TC023",
+        "TC009"
+      ],
+      "rationale": "Clinical entry",
+      "stateSetup": [
+        "Patient exists"
+      ],
+      "steps": [
+        "Open form",
+        "Fill notes",
+        "Submit"
+      ],
+      "expectedOutcome": "Encounter saved",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC025",
+      "title": "View encounter details",
+      "pageUrl": "http://localhost:3000/encounters/:id",
+      "priority": "medium",
+      "category": "encounters",
+      "dependsOn": [
+        "TC024"
+      ],
+      "rationale": "Read flow",
+      "stateSetup": [
+        "Encounter exists"
+      ],
+      "steps": [
+        "Click encounter",
+        "Verify details"
+      ],
+      "expectedOutcome": "Details visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC026",
+      "title": "Edit encounter notes",
+      "pageUrl": "http://localhost:3000/encounters/:id/edit",
+      "priority": "medium",
+      "category": "encounters",
+      "dependsOn": [
+        "TC025"
+      ],
+      "rationale": "Update flow",
+      "stateSetup": [
+        "Encounter exists"
+      ],
+      "steps": [
+        "Edit notes",
+        "Save"
+      ],
+      "expectedOutcome": "Notes updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC027",
+      "title": "Add prescription to encounter",
+      "pageUrl": "http://localhost:3000/encounters/:id",
+      "priority": "medium",
+      "category": "prescriptions",
+      "dependsOn": [
+        "TC025"
+      ],
+      "rationale": "Clinical workflow",
+      "stateSetup": [
+        "Encounter open"
+      ],
+      "steps": [
+        "Add med",
+        "Submit"
+      ],
+      "expectedOutcome": "Prescription added",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC028",
+      "title": "View patient prescription history",
+      "pageUrl": "http://localhost:3000/patients/:id/prescriptions",
+      "priority": "medium",
+      "category": "prescriptions",
+      "dependsOn": [
+        "TC027"
+      ],
+      "rationale": "History view",
+      "stateSetup": [
+        "Prescription exists"
+      ],
+      "steps": [
+        "Open history",
+        "Verify list"
+      ],
+      "expectedOutcome": "Prescriptions visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC029",
+      "title": "Add lab order to encounter",
+      "pageUrl": "http://localhost:3000/encounters/:id",
+      "priority": "medium",
+      "category": "labs",
+      "dependsOn": [
+        "TC025"
+      ],
+      "rationale": "Lab workflow",
+      "stateSetup": [
+        "Encounter open"
+      ],
+      "steps": [
+        "Add lab",
+        "Submit"
+      ],
+      "expectedOutcome": "Lab order created",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC030",
+      "title": "View lab results list",
+      "pageUrl": "http://localhost:3000/labs",
+      "priority": "medium",
+      "category": "labs",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Lab module",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open labs",
+        "Verify list"
+      ],
+      "expectedOutcome": "Lab results visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC031",
+      "title": "View billing/invoices list",
+      "pageUrl": "http://localhost:3000/billing",
+      "priority": "medium",
+      "category": "billing",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Billing module",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open billing",
+        "Verify list"
+      ],
+      "expectedOutcome": "Invoices visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC032",
+      "title": "Create invoice for patient",
+      "pageUrl": "http://localhost:3000/billing/new",
+      "priority": "medium",
+      "category": "billing",
+      "dependsOn": [
+        "TC031",
+        "TC009"
+      ],
+      "rationale": "Billing flow",
+      "stateSetup": [
+        "Patient exists"
+      ],
+      "steps": [
+        "Open form",
+        "Add items",
+        "Save"
+      ],
+      "expectedOutcome": "Invoice created",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC033",
+      "title": "Mark invoice as paid",
+      "pageUrl": "http://localhost:3000/billing/:id",
+      "priority": "low",
+      "category": "billing",
+      "dependsOn": [
+        "TC032"
+      ],
+      "rationale": "Payment state",
+      "stateSetup": [
+        "Invoice exists"
+      ],
+      "steps": [
+        "Click paid",
+        "Confirm"
+      ],
+      "expectedOutcome": "Status updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC034",
+      "title": "Logout from app",
+      "pageUrl": "http://localhost:3000/dashboard",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Session end",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Click logout",
+        "Verify redirect"
+      ],
+      "expectedOutcome": "Returned to login",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC035",
+      "title": "Session persists on refresh",
+      "pageUrl": "http://localhost:3000/dashboard",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Session storage",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Refresh page",
+        "Verify still in"
+      ],
+      "expectedOutcome": "Still logged in",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC036",
+      "title": "Profile/settings page loads",
+      "pageUrl": "http://localhost:3000/settings",
+      "priority": "low",
+      "category": "settings",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Settings access",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open settings",
+        "Verify content"
+      ],
+      "expectedOutcome": "Settings visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC037",
+      "title": "Update user profile",
+      "pageUrl": "http://localhost:3000/settings/profile",
+      "priority": "low",
+      "category": "settings",
+      "dependsOn": [
+        "TC036"
+      ],
+      "rationale": "Profile edit",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Edit name",
+        "Save"
+      ],
+      "expectedOutcome": "Profile updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC038",
+      "title": "404 on unknown route",
+      "pageUrl": "http://localhost:3000/nonexistent-xyz",
+      "priority": "low",
+      "category": "navigation",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Error handling",
+      "stateSetup": [
+        "App running"
+      ],
+      "steps": [
+        "Visit bad URL",
+        "Verify 404"
+      ],
+      "expectedOutcome": "Not found page",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC039",
+      "title": "Sidebar navigation works",
+      "pageUrl": "http://localhost:3000/dashboard",
+      "priority": "low",
+      "category": "navigation",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Nav UX",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Click each nav",
+        "Verify route"
+      ],
+      "expectedOutcome": "All links work",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC040",
+      "title": "Breadcrumbs reflect location",
+      "pageUrl": "http://localhost:3000/patients/:id",
+      "priority": "low",
+      "category": "navigation",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Nav clarity",
+      "stateSetup": [
+        "On detail page"
+      ],
+      "steps": [
+        "Verify breadcrumbs"
+      ],
+      "expectedOutcome": "Breadcrumbs correct",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC041",
+      "title": "Empty state for no patients",
+      "pageUrl": "http://localhost:3000/patients",
+      "priority": "low",
+      "category": "patients",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Empty UX",
+      "stateSetup": [
+        "No patients"
+      ],
+      "steps": [
+        "View list",
+        "Verify empty msg"
+      ],
+      "expectedOutcome": "Empty state shown",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC042",
+      "title": "Sort patients by column",
+      "pageUrl": "http://localhost:3000/patients",
+      "priority": "low",
+      "category": "patients",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Sort UX",
+      "stateSetup": [
+        "Patients exist"
+      ],
+      "steps": [
+        "Click column",
+        "Verify sort"
+      ],
+      "expectedOutcome": "List sorted",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC043",
+      "title": "Calendar view for appointments",
+      "pageUrl": "http://localhost:3000/appointments/calendar",
+      "priority": "low",
+      "category": "appointments",
+      "dependsOn": [
+        "TC017"
+      ],
+      "rationale": "Calendar UX",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open calendar",
+        "Verify render"
+      ],
+      "expectedOutcome": "Calendar visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC044",
+      "title": "Mobile responsive layout",
+      "pageUrl": "http://localhost:3000/dashboard",
+      "priority": "low",
+      "category": "responsive",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Mobile UX",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Set mobile viewport",
+        "Verify layout"
+      ],
+      "expectedOutcome": "Layout adapts",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC045",
+      "title": "Validate email format on patient form",
+      "pageUrl": "http://localhost:3000/patients/new",
+      "priority": "low",
+      "category": "patients",
+      "dependsOn": [
+        "TC009"
+      ],
+      "rationale": "Input validation",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Enter bad email",
+        "Verify error"
+      ],
+      "expectedOutcome": "Format error shown",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    }
+  ],
+  "skippedFlows": [
+    {
+      "flow": "Email verification",
+      "reason": "Requires inbox access",
+      "enabledBy": "Test email API"
+    },
+    {
+      "flow": "SMS/OTP login",
+      "reason": "Requires phone access",
+      "enabledBy": "OTP bypass in test env"
+    },
+    {
+      "flow": "Payment processing",
+      "reason": "External processor required",
+      "enabledBy": "Sandbox credentials"
+    },
+    {
+      "flow": "OAuth third-party login",
+      "reason": "External IdP",
+      "enabledBy": "Test OAuth provider"
+    },
+    {
+      "flow": "Background jobs/cron",
+      "reason": "No browser surface",
+      "enabledBy": "Admin API access"
+    }
+  ],
+  "generatedAt": "2026-05-26T16:47:35.309Z"
+}

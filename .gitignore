@@ -12,6 +12,12 @@ tests/playwright-report/
 # Compiled TypeScript
 agents/dist/
 
+# Per-run terminal transcripts (one file per agent invocation — regenerable, noisy)
+tests/generated/logs/
+
+# Local IDE / Claude Code settings
+.claude/
+
 # Environment variables
 .env
 .env.local
