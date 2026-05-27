@@ -7,15 +7,19 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : 4,
   timeout: 60_000,
-  // Per-run output: one `blob` zip per round in `test-results/blob/`, file named
-  // via QA_BLOB_NAME env var (must end in .zip). The agent sets PWTEST_BLOB_DO_NOT_REMOVE=1
-  // so Playwright does not wipe the directory between rounds. After the fix loop
-  // completes the agent runs `playwright merge-reports test-results/blob --reporter=html`
-  // so the final HTML report at `playwright-report/` contains every test from every round.
-  // The `json` reporter is consumed by the agent's runner to parse per-round results.
+  // Per-run output: each round writes its blob into its OWN outputDir under
+  // `blob-store/round-N/`, set via the QA_BLOB_DIR env var, with the file named
+  // via QA_BLOB_NAME. The blob store lives OUTSIDE `test-results/` because the
+  // `--output=test-results` flag wipes that dir at the start of every run, which
+  // would otherwise destroy earlier rounds' blobs. After the fix loop the agent
+  // collects every round-N.zip into a flat `blob-archive/` directory and runs
+  //   `playwright merge-reports blob-archive --reporter=html`
+  // so the final HTML report at `playwright-report/` contains every test from
+  // every round. The `json` reporter is consumed by the agent's runner to parse
+  // per-round results.
   reporter: [
     ["blob", {
-      outputDir: "test-results/blob",
+      outputDir: process.env.QA_BLOB_DIR ?? "blob-store/default",
       fileName: process.env.QA_BLOB_NAME ?? "default.zip",
     }],
     ["json", { outputFile: "test-results/results.json" }],

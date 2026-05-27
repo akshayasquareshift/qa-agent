@@ -68,14 +68,23 @@ export async function runPlaywright(
   // Remove stale results file so we never silently read data from a previous run
   if (fs.existsSync(RESULTS_FILE)) fs.unlinkSync(RESULTS_FILE);
 
-  // Each round writes its own blob zip; on round 0 wipe leftovers from prior agent runs
-  // so the final merge-reports step doesn't include stale rounds.
-  const blobDir = path.join(TESTS_DIR, "test-results", "blob");
-  if (round === 0 && fs.existsSync(blobDir)) {
-    fs.rmSync(blobDir, { recursive: true, force: true });
+  // Each round writes its blob into its own outputDir under `blob-store/`. The
+  // blob store lives OUTSIDE `test-results/` because the `--output=test-results`
+  // flag below makes Playwright wipe that directory at the start of every run,
+  // which would destroy any prior-round blobs stored inside it. On round 0 we
+  // wipe `blob-store/` and `blob-archive/` to start clean.
+  const blobRoot = path.join(TESTS_DIR, "blob-store");
+  const roundBlobDir = path.join(blobRoot, `round-${round}`);
+  const archiveDir = path.join(TESTS_DIR, "blob-archive");
+  if (round === 0) {
+    if (fs.existsSync(blobRoot)) fs.rmSync(blobRoot, { recursive: true, force: true });
+    if (fs.existsSync(archiveDir)) fs.rmSync(archiveDir, { recursive: true, force: true });
   }
-  fs.mkdirSync(blobDir, { recursive: true });
+  fs.mkdirSync(roundBlobDir, { recursive: true });
+  fs.mkdirSync(archiveDir, { recursive: true });
   const blobName = `round-${round}.zip`;
+  // Relative to TESTS_DIR (cwd of the child) — playwright.config.ts resolves it from there.
+  const blobDirRel = path.join("blob-store", `round-${round}`);
 
   const args = [
     "playwright",
@@ -87,17 +96,13 @@ export async function runPlaywright(
     args.push(`--grep=${grepPattern}`);
   }
 
-  // spawnTeed pipes child output through process.stdout/stderr so the file logger
-  // captures it. The blob reporter (configured with outputDir=test-results/blob)
-  // would normally wipe that dir on every run, which would lose earlier rounds —
-  // PWTEST_BLOB_DO_NOT_REMOVE=1 keeps siblings intact so each round-N.zip persists.
   const t0 = Date.now();
   await spawnTeed("npx", args, {
     cwd: TESTS_DIR,
     env: {
       ...process.env,
+      QA_BLOB_DIR: blobDirRel,
       QA_BLOB_NAME: blobName,
-      PWTEST_BLOB_DO_NOT_REMOVE: "1",
     },
   });
   const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
@@ -225,7 +230,10 @@ export function buildGrepPattern(ids: string[]): string {
 /**
  * Merge every per-round blob zip into one unified HTML report.
  *
- * After the fix loop:
+ * Each round writes its blob into its own `blob-store/round-N/` directory (see
+ * runPlaywright). Here we flatten them into `blob-archive/` and hand that to
+ * `playwright merge-reports`.
+ *
  *   - Round 0's blob has results for every generated spec
  *   - Each fix round's blob has results only for the previously-failing tests
  *   - merge-reports overlays later rounds onto earlier ones — for any test that
@@ -236,8 +244,23 @@ export function buildGrepPattern(ids: string[]): string {
  * View it with `pnpm -C tests exec playwright show-report`.
  */
 export async function mergeBlobReports(): Promise<void> {
-  const blobDir = path.join(TESTS_DIR, "test-results", "blob");
-  if (!fs.existsSync(blobDir) || fs.readdirSync(blobDir).length === 0) {
+  const blobRoot = path.join(TESTS_DIR, "blob-store");
+  const archiveDir = path.join(TESTS_DIR, "blob-archive");
+  fs.mkdirSync(archiveDir, { recursive: true });
+
+  // Collect every round's blob into a flat archive directory for merge-reports.
+  if (fs.existsSync(blobRoot)) {
+    for (const entry of fs.readdirSync(blobRoot)) {
+      const roundDir = path.join(blobRoot, entry);
+      if (!fs.statSync(roundDir).isDirectory()) continue;
+      for (const file of fs.readdirSync(roundDir)) {
+        if (!file.endsWith(".zip")) continue;
+        fs.copyFileSync(path.join(roundDir, file), path.join(archiveDir, file));
+      }
+    }
+  }
+
+  if (fs.readdirSync(archiveDir).filter((f) => f.endsWith(".zip")).length === 0) {
     console.log("      No blob reports found — skipping HTML merge.");
     return;
   }
@@ -249,7 +272,7 @@ export async function mergeBlobReports(): Promise<void> {
 
   const proc = await spawnTeed(
     "npx",
-    ["playwright", "merge-reports", "test-results/blob", "--reporter=html"],
+    ["playwright", "merge-reports", "blob-archive", "--reporter=html"],
     { cwd: TESTS_DIR },
   );
 
