@@ -138,7 +138,7 @@ You must NEVER suggest changes to the application source code. Your role is:
 3. For SOURCE_BUG: still provide a specPatch that gracefully handles the missing element (e.g. skip the broken assertion), so the test fails cleanly rather than throwing
 
 ## NO-SKIP POLICY
-\`test.skip()\` / \`test.fixme()\` is ONLY permitted when the root cause is SOURCE_BUG. For every other failure class (SELECTOR_STALE, STRICT_MODE, TIMING, STATE, URL_WRONG, FLAKY, UNKNOWN) you MUST patch the spec to actually exercise the flow. In particular:
+\`test.skip()\` / \`test.fixme()\` is ONLY permitted when the root cause is SOURCE_BUG. For every other failure class (SELECTOR_STALE, STRICT_MODE, TIMING, STATE, URL_WRONG, UI_CHANGE, FLAKY, UNKNOWN) you MUST patch the spec to actually exercise the flow. In particular:
 - **STATE failures** (missing session, no patient/record, empty list, login redirect) — do NOT skip. Patch the spec to use the seeded credentials/markers below: search the list page for the seeded marker, re-login if the session was lost, navigate via the UI to set up the precondition.
 - **URL_WRONG** — patch the spec to navigate via a link click or correct the URL pattern using the route info; do not skip.
 - **TIMING / STRICT_MODE / SELECTOR_STALE** — patch the wait or selector; do not skip.
@@ -177,6 +177,7 @@ ${learningsSection}
 - STATE: precondition not met — auth missing, required data not created, or async action not awaited
 - URL_WRONG: page not found, requires query params, or needs soft-nav via link click instead of direct goto
 - SOURCE_BUG: component renders but data-testid attribute missing from inner element (not wrapper div)
+- UI_CHANGE: the app's UI changed deliberately — visible text was renamed (e.g. "Add to cart" → "Add item"), a button label shifted, an order of elements changed, or a stable-looking selector now points at different markup. Use UI_CHANGE (NOT SELECTOR_STALE) when the screenshot/source shows the new copy/markup and your patch widens a text regex or accepts an alternative label. Describe the change concretely in rootCause (e.g. "Add-to-cart button was renamed to 'Add item'") so the user can see what shifted. If you cannot tell from the evidence whether the change was deliberate, default to SELECTOR_STALE instead.
 - FLAKY: parallel test load — scope selectors more tightly, increase modal timeouts to 30s
 
 ## Your Task
@@ -188,7 +189,7 @@ Classify the root cause and provide the minimal spec fix.
 Respond with ONLY a valid JSON object:
 {
   "rootCause": "one sentence",
-  "failureClass": "SELECTOR_STALE|STRICT_MODE|TIMING|STATE|URL_WRONG|SOURCE_BUG|FLAKY|UNKNOWN",
+  "failureClass": "SELECTOR_STALE|STRICT_MODE|TIMING|STATE|URL_WRONG|SOURCE_BUG|UI_CHANGE|FLAKY|UNKNOWN",
   "fixTarget": "spec|source|both",
   "specPatch": { "oldStr": "...", "newStr": "..." } | null,
   "sourceFix": { "file": "relative/path/from/repo/root.tsx", "oldStr": "existing code snippet", "newStr": "corrected code snippet" } | null,

@@ -145,6 +145,7 @@ function buildMarkdown(r: CoverageReport): string {
     `| Tests skipped | ${r.totalSkipped} |`,
     `| Pass rate | **${r.passRate}** |`,
     `| Application bugs found | ${r.bugsFound.length > 0 ? `⚠️ **${r.bugsFound.length} — REVIEW REQUIRED** (see below)` : "0"} |`,
+    `| UI changes detected | ${(() => { const n = new Set(r.fixLog.filter((f) => f.failureClass === "UI_CHANGE" && f.applied).map((f) => f.specId)).size; return n > 0 ? `🔧 **${n}** (see below)` : "0"; })()} |`,
     `| Fix rounds applied | ${[...new Set(r.fixLog.map((f) => f.round))].length} |`,
     `| Specs needing fixes | ${[...new Set(r.fixLog.filter((f) => f.applied).map((f) => f.specId))].length} |`,
     "",
@@ -188,6 +189,34 @@ function buildMarkdown(r: CoverageReport): string {
         "",
       );
     }
+  }
+
+  // ── Detected UI changes (deliberate app UI shifts the agent adapted to) ─────
+  // Group by spec so multiple rounds on the same test collapse into one entry,
+  // keeping the latest UI_CHANGE rootCause/explanation (which is usually the
+  // most refined diagnosis).
+  const uiChangesBySpec = new Map<string, TestFix>();
+  for (const f of r.fixLog) {
+    if (f.failureClass !== "UI_CHANGE" || !f.applied) continue;
+    const existing = uiChangesBySpec.get(f.specId);
+    if (!existing || f.round > existing.round) uiChangesBySpec.set(f.specId, f);
+  }
+  if (uiChangesBySpec.size > 0) {
+    lines.push(
+      `## 🔧 Detected UI Changes — Spec Auto-Adapted`,
+      "",
+      `**${uiChangesBySpec.size} test(s)** failed because the application's UI changed (text rename, label shift, markup reorder). The agent adapted the spec automatically — no developer action required, but these are surfaced so you can confirm the change was intentional.`,
+      "",
+      `| TC | Title | What changed | Patched in round |`,
+      `| -- | ----- | ------------ | ---------------- |`,
+    );
+    const titleById = new Map(r.specs.map((s) => [s.id, s.title]));
+    for (const fix of [...uiChangesBySpec.values()].sort((a, b) => a.specId.localeCompare(b.specId))) {
+      const title = titleById.get(fix.specId) ?? fix.specId;
+      const rootCause = fix.rootCause.replace(/\|/g, "\\|");
+      lines.push(`| ${fix.specId} | ${title} | ${rootCause} | ${fix.round} |`);
+    }
+    lines.push("");
   }
 
   // ── Coverage by Category ─────────────────────────────────────────────────────
@@ -345,6 +374,12 @@ export function wrapHtmlReportWithCoverageTab(): void {
     /(<h2>⚠️[\s\S]*?)(?=<h2>|$)/,
     '<div class="bugs-callout">$1</div>',
   );
+  // Same treatment for the "🔧 Detected UI Changes" section, with a calmer
+  // (informational, not alarming) palette since no dev action is required.
+  coverageBody = coverageBody.replace(
+    /(<h2>🔧[\s\S]*?)(?=<h2>|$)/,
+    '<div class="ui-change-callout">$1</div>',
+  );
 
   fs.writeFileSync(
     path.join(HTML_REPORT_DIR, "coverage.html"),
@@ -423,6 +458,10 @@ function coveragePage(bodyHtml: string): string {
   .bugs-callout h3 { color: #8b0000; }
   .bugs-callout table th, .bugs-callout table td { background: #fff; }
   .bugs-callout p strong { color: #1d1d1f; }
+  /* UI-change callout — informational (the agent already adapted), not alarming. */
+  .ui-change-callout { background: #e7f1ff; border-left: 5px solid #1971c2; padding: 18px 26px 8px; margin: 28px 0; border-radius: 4px; }
+  .ui-change-callout h2 { color: #0b3d91; margin-top: 4px; border-bottom-color: #c0d6ee; }
+  .ui-change-callout table th, .ui-change-callout table td { background: #fff; }
 </style>
 </head>
 <body>

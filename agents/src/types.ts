@@ -97,6 +97,7 @@ export type FailureClass =
   | "STATE"           // wrong preconditions (e.g. missing auth, required data not set up)
   | "URL_WRONG"       // page not found, wrong step param, soft-nav required
   | "SOURCE_BUG"      // application code is missing attr or broken
+  | "UI_CHANGE"       // app UI changed deliberately (text rename, markup shift) — spec adapted but worth surfacing
   | "FLAKY"           // passes alone, fails under parallel load
   | "UNKNOWN";
 

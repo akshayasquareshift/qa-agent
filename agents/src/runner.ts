@@ -270,10 +270,17 @@ export async function mergeBlobReports(): Promise<void> {
     fs.rmSync(reportDir, { recursive: true, force: true });
   }
 
+  // PLAYWRIGHT_HTML_OPEN=never stops merge-reports from launching a static server
+  // for the merged HTML report. Without it, Playwright sees failing tests in the
+  // report and auto-serves on a local port, blocking the parent process forever —
+  // which prevents wrapHtmlReportWithCoverageTab from ever running.
   const proc = await spawnTeed(
     "npx",
     ["playwright", "merge-reports", "blob-archive", "--reporter=html"],
-    { cwd: TESTS_DIR },
+    {
+      cwd: TESTS_DIR,
+      env: { ...process.env, PLAYWRIGHT_HTML_OPEN: "never" },
+    },
   );
 
   if (proc.status !== 0) {
