@@ -1,50 +1,28 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('smoke — Load homepage successfully', () => {
+test.describe('navigation — Load homepage successfully', () => {
   test('TC001 - Load homepage successfully', async ({ page }) => {
-    const pageErrors: Error[] = [];
-    const consoleErrors: string[] = [];
-
-    page.on('pageerror', (err) => {
-      pageErrors.push(err);
-    });
-
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') {
-        consoleErrors.push(msg.text());
-      }
-    });
-
-    const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const response = await page.goto('http://localhost:8000/dk', { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     expect(response, 'navigation response should exist').not.toBeNull();
     const status = response!.status();
-    expect(status, `homepage status should be < 400, got ${status}`).toBeLessThan(400);
+    expect(status, `expected 2xx status, got ${status}`).toBeGreaterThanOrEqual(200);
+    expect(status, `expected 2xx status, got ${status}`).toBeLessThan(400);
 
     await page.waitForLoadState('load');
 
-    await page.locator('body').waitFor({ state: 'visible', timeout: 10000 });
+    await expect(page).toHaveURL(/\/dk(\/|$|\?)/, { timeout: 10000 });
 
-    await expect(page).toHaveURL(/.*/);
+    const body = page.locator('body');
+    await expect(body).toBeVisible({ timeout: 10000 });
 
-    const bodyText = (await page.locator('body').innerText()).toLowerCase();
-    const errorPatterns = [
-      'application error',
-      'internal server error',
-      '500 -',
-      '502 bad gateway',
-      '503 service unavailable',
-      'this page isn\u2019t working',
-      'unhandled runtime error',
-      'failed to compile',
-    ];
-    for (const pattern of errorPatterns) {
-      expect(bodyText, `body should not contain error text "${pattern}"`).not.toContain(pattern);
+    const bodyText = (await body.innerText({ timeout: 5000 })).toLowerCase();
+    const errorMarkers = ['application error', 'this page could not be found', '500 - internal server error', 'something went wrong'];
+    for (const marker of errorMarkers) {
+      expect(bodyText, `homepage body should not contain error marker "${marker}"`).not.toContain(marker);
     }
 
-    const title = await page.title();
-    expect(title, 'page should have a non-empty title').not.toEqual('');
-
-    expect(pageErrors, `no uncaught page errors expected, got: ${pageErrors.map(e => e.message).join('; ')}`).toHaveLength(0);
+    const mainContent = page.locator('main:visible, [role="main"]:visible, #__next:visible, body > div:visible').first();
+    await expect(mainContent).toBeVisible({ timeout: 10000 });
   });
 });

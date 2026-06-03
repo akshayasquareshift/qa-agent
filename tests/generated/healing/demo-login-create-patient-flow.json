@@ -1,0 +1,20 @@
+{
+  "suiteName": "Demo — login + create patient flow",
+  "baseUrl": "http://localhost:8000",
+  "startedAt": "2026-06-02T06:15:16.185Z",
+  "totalDurationMs": 19799,
+  "steps": [
+    {
+      "stepIndex": 0,
+      "intent": "Open the application homepage",
+      "action": "goto",
+      "status": "failed",
+      "errorMessage": "page.goto: Timeout 18000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:8000/\", waiting until \"domcontentloaded\"\u001b[22m\n",
+      "durationMs": 18032
+    }
+  ],
+  "healEvents": [],
+  "passed": 0,
+  "healed": 0,
+  "failed": 1
+}

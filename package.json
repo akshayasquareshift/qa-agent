@@ -9,6 +9,9 @@
   "scripts": {
     "generate": "pnpm --filter @qa/agents run generate",
     "plan-only": "pnpm --filter @qa/agents run plan-only",
+    "author": "pnpm --filter @qa/agents run author",
+    "heal": "pnpm --filter @qa/healer run heal",
+    "heal:demo": "pnpm --filter @qa/healer run heal:demo",
     "install:browsers": "npx playwright install chromium"
   }
 }

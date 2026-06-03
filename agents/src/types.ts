@@ -13,11 +13,22 @@ export interface SelectorInfo {
   context: string; // module / component that owns this selector
 }
 
+// A clickable element's real visible label, paired with any data-testid on the
+// same element. Lets the generator target buttons/links by their ACTUAL text
+// (or testid) instead of guessing — critical for testid-less CTAs.
+export interface ActionLabel {
+  label: string;       // visible text, e.g. "Add item", "Go to checkout"
+  testId?: string;     // data-testid on the same element, if present
+  element: string;     // tag kind: "button" | "link"
+  context: string;     // module / component that owns this element
+}
+
 export interface AppContext {
   framework: "nextjs-app-router" | "nextjs-pages" | "spa" | "unknown";
   renderingModel: "ssr-streaming" | "ssr-static" | "csr" | "unknown";
   routes: RouteInfo[];
   selectors: SelectorInfo[];
+  actionLabels: ActionLabel[]; // real button/link labels paired with their testids
   seedData: string[]; // test records / seed slugs — domain-agnostic (set via SEED_DATA env var)
   baseUrl: string;
   countryCode: string; // locale prefix — empty string for non-locale apps

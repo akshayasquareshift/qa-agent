@@ -6,6 +6,9 @@ tests/playwright-report/
 tests/blob-store/
 tests/blob-archive/
 
+# Natural-Language authoring scratch spec (regenerated on every run from the UI)
+tests/nlp-authored/
+
 # Generated spec files — commit if you want to version them; ignore if you prefer a clean repo
 # tests/generated/*.spec.ts
 # tests/generated/test-plan.json

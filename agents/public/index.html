@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QA Agent · Natural-Language Test Authoring</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1c2230;
+    --border: #2a3343;
+    --text: #e6edf3;
+    --muted: #8b98a9;
+    --accent: #6ea8fe;
+    --accent-2: #7c5cff;
+    --green: #3fb950;
+    --red: #f85149;
+    --amber: #d29922;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: linear-gradient(180deg, #11161f, #0e1116);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  header h1 .spark { color: var(--accent-2); }
+  header .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .ctx { text-align: right; font-size: 12px; color: var(--muted); }
+  .ctx b { color: var(--text); font-weight: 600; }
+  .ctx .pill {
+    display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 9px; margin-left: 6px; color: var(--text); font-size: 11px;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 26px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; margin-bottom: 22px;
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+
+  textarea {
+    width: 100%; min-height: 110px; resize: vertical; background: var(--bg);
+    color: var(--text); border: 1px solid var(--border); border-radius: 9px;
+    padding: 13px 14px; font-size: 15px; font-family: inherit; line-height: 1.55;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(110,168,254,0.15); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  .chip {
+    font-size: 12.5px; color: var(--muted); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer;
+    transition: 0.12s;
+  }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font-size: 14px; font-weight: 600; border-radius: 9px; padding: 10px 18px; cursor: pointer;
+    border: 1px solid transparent; transition: 0.12s; font-family: inherit;
+  }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #06101f; }
+  .btn-primary:hover:not(:disabled) { background: #87b6ff; }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--accent); }
+  .btn-run { background: var(--green); color: #04140a; }
+  .btn-run:hover:not(:disabled) { background: #56cc66; }
+
+  .adapt-note {
+    font-size: 12.5px; color: var(--accent-2); background: rgba(124,92,255,0.1);
+    border: 1px solid rgba(124,92,255,0.35); border-radius: 7px; padding: 7px 11px; margin-top: 12px;
+    display: none;
+  }
+  .adapt-note.show { display: block; }
+
+  .heal-toggle { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+  .heal-toggle input { margin-top: 2px; accent-color: var(--accent-2); cursor: pointer; }
+  .heal-toggle:hover span { color: var(--text); }
+
+  pre.code {
+    margin: 0; background: #0a0d12; border: 1px solid var(--border); border-radius: 9px;
+    padding: 14px 16px; overflow: auto; max-height: 460px; font-family: var(--mono);
+    font-size: 12.5px; line-height: 1.6; color: #d7e0ea; white-space: pre;
+  }
+  .empty { color: var(--muted); font-size: 13.5px; padding: 22px 6px; text-align: center; }
+
+  .status-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; min-height: 26px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13px;
+    padding: 4px 12px; border-radius: 999px;
+  }
+  .badge.passed { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.4); }
+  .badge.failed { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+  .badge.running { background: rgba(110,168,254,0.15); color: var(--accent); border: 1px solid rgba(110,168,254,0.4); }
+  .badge.healing { background: rgba(124,92,255,0.15); color: var(--accent-2); border: 1px solid rgba(124,92,255,0.4); }
+  .heal-log { margin: 10px 0; padding: 0; list-style: none; }
+  .heal-log li { font-size: 12.5px; color: var(--accent-2); padding: 4px 0; border-left: 2px solid rgba(124,92,255,0.4); padding-left: 10px; margin-bottom: 4px; }
+  .heal-log li .rc { color: var(--muted); }
+  .badge.skipped, .badge.unknown { background: rgba(210,153,34,0.15); color: var(--amber); border: 1px solid rgba(210,153,34,0.4); }
+  .dur { color: var(--muted); font-size: 12.5px; }
+
+  .spinner {
+    width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .steps { list-style: none; padding: 0; margin: 6px 0 0; }
+  .steps li {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 7px;
+    font-size: 13.5px; border: 1px solid transparent;
+  }
+  .steps li + li { margin-top: 2px; }
+  .steps li .mark { flex: 0 0 auto; width: 18px; text-align: center; font-weight: 700; }
+  .steps li.ok .mark { color: var(--green); }
+  .steps li.fail { background: rgba(248,81,73,0.08); border-color: rgba(248,81,73,0.3); }
+  .steps li.fail .mark { color: var(--red); }
+  .steps li .label { flex: 1; }
+  .steps li .t { color: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+  .steps li .err { color: #ffb4ae; font-size: 12px; font-family: var(--mono); margin-top: 4px; white-space: pre-wrap; }
+
+  details.logs { margin-top: 14px; }
+  details.logs summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  pre.log {
+    margin: 8px 0 0; background: #0a0d12; border: 1px solid var(--border); border-radius: 9px;
+    padding: 12px 14px; max-height: 240px; overflow: auto; font-family: var(--mono);
+    font-size: 11.5px; line-height: 1.55; color: #9fb0c3; white-space: pre-wrap;
+  }
+  .errbox {
+    margin-top: 12px; background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.3);
+    border-radius: 9px; padding: 12px 14px; font-family: var(--mono); font-size: 12px;
+    color: #ffb4ae; white-space: pre-wrap; max-height: 220px; overflow: auto;
+  }
+  .shot { margin-top: 14px; }
+  .shot img { max-width: 100%; border: 1px solid var(--border); border-radius: 9px; }
+  .shot .cap { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1><span class="spark">✦</span> Natural-Language Test Authoring</h1>
+    <div class="sub">Describe a test in plain English — the agent writes Playwright code, runs it, and reports the result.</div>
+  </div>
+  <div class="ctx" id="ctx">Loading app context…</div>
+</header>
+
+<main>
+  <div class="grid">
+    <!-- ─── Left: authoring ─── -->
+    <section>
+      <div class="card">
+        <h2 id="authorHeading">What do you want to test?</h2>
+        <textarea id="instruction" placeholder="e.g. Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout."></textarea>
+        <div class="chips" id="chips"></div>
+        <div class="adapt-note" id="adaptNote">↻ Adapting your existing test — describe the change (e.g. “now apply a coupon code”).</div>
+        <div class="row">
+          <button class="btn-primary" id="genBtn">Generate test</button>
+          <button class="btn-run" id="runBtn" disabled>▶ Run test</button>
+          <button class="btn-ghost" id="resetBtn" style="display:none">Start over</button>
+        </div>
+        <label class="heal-toggle" id="healToggle">
+          <input type="checkbox" id="autoHeal" checked />
+          <span>Auto-heal on failure — if the test fails, the agent fixes the code and re-runs (up to 3×)</span>
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>Test result</h2>
+        <div class="status-bar" id="statusBar"><span class="empty" style="padding:0">Run a test to see the result.</span></div>
+        <ul class="heal-log" id="healLog"></ul>
+        <ul class="steps" id="steps"></ul>
+        <div id="errbox"></div>
+        <div id="shot"></div>
+        <details class="logs" id="logsWrap" style="display:none">
+          <summary>Playwright output</summary>
+          <pre class="log" id="log"></pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ─── Right: generated code ─── -->
+    <section>
+      <div class="card">
+        <h2>Generated Playwright code</h2>
+        <div id="codeWrap"><div class="empty">Your generated test will appear here.</div></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const EXAMPLES = [
+  "Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout.",
+  "Now test with a coupon code applied.",
+  "Search for a product, open its detail page, and confirm the price is shown.",
+  "Add an item to the cart and confirm the cart badge count increases.",
+];
+
+let currentCode = null;   // last generated spec — drives adapt mode
+let busy = false;
+
+// ── load app context ──────────────────────────────────────────────────────
+async function loadContext() {
+  try {
+    const c = await (await fetch("/api/context")).json();
+    const locale = c.localePrefix ? ` <span class="pill">${c.localePrefix}</span>` : "";
+    $("ctx").innerHTML =
+      `Testing <b>${escapeHtml(c.appName)}</b>${locale}<br>` +
+      `<span class="pill">${escapeHtml(c.framework)}</span>` +
+      `<span class="pill">${c.routeCount} routes</span>` +
+      `<span class="pill">${c.selectorCount} selectors</span>` +
+      (c.actionCount ? `<span class="pill">${c.actionCount} actions</span>` : "") +
+      (c.hasCredentials ? `<span class="pill">✓ auth ready</span>` : "");
+  } catch {
+    $("ctx").textContent = "App context unavailable";
+  }
+}
+
+function renderChips() {
+  $("chips").innerHTML = "";
+  for (const ex of EXAMPLES) {
+    const el = document.createElement("div");
+    el.className = "chip";
+    el.textContent = ex;
+    el.onclick = () => { $("instruction").value = ex; $("instruction").focus(); };
+    $("chips").appendChild(el);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function setBusy(state) {
+  busy = state;
+  $("genBtn").disabled = state;
+  $("runBtn").disabled = state || !currentCode;
+}
+
+function renderCode(code) {
+  const wrap = $("codeWrap");
+  wrap.innerHTML = "";
+  const pre = document.createElement("pre");
+  pre.className = "code";
+  pre.textContent = code;
+  wrap.appendChild(pre);
+}
+
+function enterAdaptMode() {
+  $("authorHeading").textContent = "Modify the test";
+  $("adaptNote").classList.add("show");
+  $("genBtn").textContent = "Adapt test";
+  $("resetBtn").style.display = "";
+  $("instruction").value = "";
+  $("instruction").placeholder = "e.g. Now apply a coupon code and re-check the total.";
+}
+
+function resetAll() {
+  currentCode = null;
+  $("authorHeading").textContent = "What do you want to test?";
+  $("adaptNote").classList.remove("show");
+  $("genBtn").textContent = "Generate test";
+  $("resetBtn").style.display = "none";
+  $("instruction").value = "";
+  $("instruction").placeholder = "e.g. Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout.";
+  $("codeWrap").innerHTML = '<div class="empty">Your generated test will appear here.</div>';
+  $("runBtn").disabled = true;
+  clearResult(true);
+}
+
+// ── generate ───────────────────────────────────────────────────────────────
+async function generate() {
+  const instruction = $("instruction").value.trim();
+  if (!instruction) { $("instruction").focus(); return; }
+  setBusy(true);
+  $("genBtn").innerHTML = '<span class="spinner"></span> Translating…';
+  $("codeWrap").innerHTML = '<div class="empty"><span class="spinner"></span> Writing Playwright code from your instruction…</div>';
+  try {
+    const resp = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction, previousCode: currentCode || undefined }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Generation failed");
+    currentCode = data.code;
+    renderCode(data.code);
+    if (!$("resetBtn").style.display || $("genBtn").textContent.includes("Adapt") === false) {
+      // first successful generation → switch UI into adapt mode for the next round
+    }
+    enterAdaptMode();
+    $("runBtn").disabled = false;
+    clearResult(true);
+  } catch (err) {
+    $("codeWrap").innerHTML = `<div class="errbox">${escapeHtml(err.message)}</div>`;
+  } finally {
+    $("genBtn").textContent = currentCode ? "Adapt test" : "Generate test";
+    setBusy(false);
+  }
+}
+
+// ── run (streaming) ──────────────────────────────────────────────────────────
+function clearResult(showHint) {
+  $("statusBar").innerHTML = showHint ? '<span class="empty" style="padding:0">Run the test to see the result.</span>' : "";
+  $("steps").innerHTML = "";
+  $("healLog").innerHTML = "";
+  $("errbox").innerHTML = "";
+  $("shot").innerHTML = "";
+  $("log").textContent = "";
+  $("logsWrap").style.display = "none";
+}
+
+async function run() {
+  if (!currentCode) return;
+  setBusy(true);
+  clearResult(false);
+  $("statusBar").innerHTML = '<span class="badge running"><span class="spinner"></span> Running…</span>';
+  $("logsWrap").style.display = "";
+  const logEl = $("log");
+
+  try {
+    const resp = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: currentCode, autoHeal: $("autoHeal").checked }),
+    });
+    if (!resp.ok && !resp.body) throw new Error("Run failed to start");
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+        if (line.trim()) handleEvent(JSON.parse(line), logEl);
+      }
+    }
+  } catch (err) {
+    $("statusBar").innerHTML = '<span class="badge failed">Error</span>';
+    $("errbox").innerHTML = `<div class="errbox">${escapeHtml(err.message)}</div>`;
+  } finally {
+    setBusy(false);
+  }
+}
+
+function handleEvent(ev, logEl) {
+  if (ev.type === "log") {
+    logEl.textContent += ev.line + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  } else if (ev.type === "status") {
+    // keep the running badge; status messages flow into the log too
+    logEl.textContent += "› " + ev.message + "\n";
+  } else if (ev.type === "heal") {
+    // entering a heal round — show a healing badge and a timeline entry
+    $("statusBar").innerHTML =
+      `<span class="badge healing"><span class="spinner"></span> Auto-healing (round ${ev.round}/${ev.maxRounds})…</span>`;
+    const li = document.createElement("li");
+    li.id = `heal-${ev.round}`;
+    li.innerHTML = `↻ Round ${ev.round}: test failed${ev.failingStep ? ` at “${escapeHtml(ev.failingStep)}”` : ""} — analysing & fixing…`;
+    $("healLog").appendChild(li);
+    logEl.textContent += `› ${ev.message}\n`;
+  } else if (ev.type === "heal-fix") {
+    // a fix was produced — show root cause and update the code panel live
+    const li = $(`heal-${ev.round}`);
+    if (li) li.innerHTML = `↻ Round ${ev.round}: <span class="rc">${escapeHtml(ev.rootCause)}</span> — re-running…`;
+    if (ev.code) { currentCode = ev.code; renderCode(ev.code); }
+  } else if (ev.type === "error") {
+    $("statusBar").innerHTML = '<span class="badge failed">Error</span>';
+    $("errbox").innerHTML = `<div class="errbox">${escapeHtml(ev.message)}</div>`;
+  } else if (ev.type === "result") {
+    if (ev.code) { currentCode = ev.code; renderCode(ev.code); }
+    renderResult(ev);
+  }
+}
+
+function renderResult(r) {
+  const sec = (r.durationMs / 1000).toFixed(1);
+  const label = { passed: "✓ Passed", failed: "✕ Failed", timedout: "✕ Timed out", skipped: "Skipped", unknown: "No result" }[r.status] || r.status;
+  const healNote = r.healRounds
+    ? (r.status === "passed"
+        ? `<span class="dur">· ✦ self-healed in ${r.healRounds} round${r.healRounds > 1 ? "s" : ""}</span>`
+        : `<span class="dur">· ${r.healRounds} heal round${r.healRounds > 1 ? "s" : ""} attempted</span>`)
+    : "";
+  $("statusBar").innerHTML =
+    `<span class="badge ${r.status}">${label}</span>` +
+    (r.durationMs ? `<span class="dur">${sec}s</span>` : "") +
+    healNote +
+    (r.title ? `<span class="dur">· ${escapeHtml(r.title)}</span>` : "");
+
+  // step timeline
+  const stepsEl = $("steps");
+  stepsEl.innerHTML = "";
+  for (const s of r.steps || []) {
+    const li = document.createElement("li");
+    li.className = s.error ? "fail" : "ok";
+    const t = s.durationMs ? `${(s.durationMs / 1000).toFixed(1)}s` : "";
+    li.innerHTML =
+      `<span class="mark">${s.error ? "✕" : "✓"}</span>` +
+      `<div class="label">${escapeHtml(s.title)} <span class="t">${t}</span>` +
+      (s.error ? `<div class="err">${escapeHtml(s.error)}</div>` : "") +
+      `</div>`;
+    stepsEl.appendChild(li);
+  }
+
+  if (r.error && r.status !== "passed") {
+    $("errbox").innerHTML = `<div class="errbox">${escapeHtml(r.error)}</div>`;
+  }
+  if (r.screenshot) {
+    $("shot").innerHTML =
+      `<div class="shot"><div class="cap">Screenshot at failure:</div>` +
+      `<img src="/api/artifact?path=${encodeURIComponent(r.screenshot)}" alt="failure screenshot"></div>`;
+  }
+}
+
+// ── wire up ──────────────────────────────────────────────────────────────────
+$("genBtn").onclick = generate;
+$("runBtn").onclick = run;
+$("resetBtn").onclick = resetAll;
+$("instruction").addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !busy) generate();
+});
+renderChips();
+loadContext();
+</script>
+</body>
+</html>

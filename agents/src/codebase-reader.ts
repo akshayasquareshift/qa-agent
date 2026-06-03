@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import type { AppContext, RouteInfo, SelectorInfo } from "./types";
+import type { AppContext, RouteInfo, SelectorInfo, ActionLabel } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Path configuration — driven by environment variables so this module works
@@ -77,6 +77,73 @@ function extractTestIds(content: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(content)) !== null) ids.push(m[1]);
   return ids;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Action-label extraction
+//
+// Many CTAs (especially primary buttons) carry NO data-testid, so a generator
+// that only sees testids has to GUESS the visible text — and guesses wrong
+// (e.g. "Add to cart" when the button actually says "Add item"). Here we scan
+// interactive elements and capture their REAL visible label — including the
+// literal branches of dynamic text like `cond ? "Add item" : "Out of stock"` —
+// paired with any data-testid on the same element. The generator then targets
+// real text or the real testid instead of inventing names.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Interactive JSX tags whose text is a user-clickable label. The first group
+// captures the opening-tag attributes; the second captures the inner content.
+const INTERACTIVE_TAGS = [
+  "Button", "button", "a", "Link", "LocalizedClientLink", "InteractiveLink",
+  "IconButton", "SubmitButton", "Tab", "MenuItem", "NavLink",
+];
+
+// Reject strings that are clearly not human-facing labels: identifiers,
+// classNames, paths, template fragments, etc.
+function isLabelLike(s: string): boolean {
+  const t = s.trim();
+  if (t.length < 2 || t.length > 40) return false;
+  if (!/[A-Za-z]/.test(t)) return false;                 // must contain a letter
+  if (/[<>{}=/\\@#:;_|`$]/.test(t)) return false;        // paths / css / template / identifiers
+  if (/^[a-z]+[A-Z]/.test(t)) return false;              // camelCase identifier (e.g. selectedVariant)
+  if (/\b(flex|grid|rounded|absolute|relative|hidden)\b/.test(t)) return false; // stray tailwind
+  // words made of letters/digits with simple CTA punctuation only
+  return /^[A-Za-z0-9][A-Za-z0-9 '!?,.()&%+-]*$/.test(t);
+}
+
+function extractActionLabels(content: string, context: string): ActionLabel[] {
+  const out: ActionLabel[] = [];
+  const seen = new Set<string>();
+
+  for (const tag of INTERACTIVE_TAGS) {
+    // <Tag ...attrs...>inner</Tag>  — non-greedy inner; bounded to avoid runaway.
+    const re = new RegExp(`<${tag}\\b([^>]*)>([\\s\\S]{0,500}?)</${tag}>`, "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      const attrs = m[1];
+      const inner = m[2];
+      const testId = attrs.match(/data-testid="([^"]+)"/)?.[1];
+      const element = tag === "a" || /Link/.test(tag) || tag === "NavLink" ? "link" : "button";
+
+      // Candidate labels: quoted string literals inside the element (covers the
+      // branches of ternary text), plus any bare static text node.
+      const candidates: string[] = [];
+      let q: RegExpExecArray | null;
+      const quoted = /["']([^"'<>{}\n]{2,40})["']/g;
+      while ((q = quoted.exec(inner)) !== null) candidates.push(q[1]);
+      const bareText = inner.replace(/\{[\s\S]*?\}/g, " ").replace(/<[^>]+>/g, " ").trim();
+      if (bareText) candidates.push(bareText);
+
+      for (const c of candidates) {
+        if (!isLabelLike(c)) continue;
+        const key = `${c.trim()}::${testId ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ label: c.trim(), testId, element, context });
+      }
+    }
+  }
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,13 +257,21 @@ export function readCodebaseContext(): AppContext {
     (f) => f.endsWith(".tsx") || f.endsWith(".ts")
   );
 
+  const actionMap = new Map<string, ActionLabel>();
   for (const file of moduleFiles) {
     try {
       const content = fs.readFileSync(file, "utf-8");
-      const ids = extractTestIds(content);
       const contextName = path.relative(MODULES_PATH, file).split(path.sep)[0];
+
+      const ids = extractTestIds(content);
       for (const id of ids) {
         if (!selectorMap.has(id)) selectorMap.set(id, contextName);
+      }
+
+      for (const a of extractActionLabels(content, contextName)) {
+        // Prefer the first occurrence; upgrade if a later one carries a testid.
+        const existing = actionMap.get(a.label);
+        if (!existing || (!existing.testId && a.testId)) actionMap.set(a.label, a);
       }
     } catch { /* ignore unreadable files */ }
   }
@@ -204,6 +279,8 @@ export function readCodebaseContext(): AppContext {
   const selectors: SelectorInfo[] = Array.from(selectorMap.entries()).map(
     ([testId, context]) => ({ testId, context })
   );
+
+  const actionLabels: ActionLabel[] = Array.from(actionMap.values());
 
   const seedData = process.env.SEED_DATA
     ? process.env.SEED_DATA.split(",").map((s) => s.trim()).filter(Boolean)
@@ -214,6 +291,7 @@ export function readCodebaseContext(): AppContext {
     renderingModel,
     routes,
     selectors,
+    actionLabels,
     seedData,
     baseUrl: process.env.BASE_URL ?? "http://localhost:3000",
     countryCode,

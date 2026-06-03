@@ -1,5 +1,6 @@
 packages:
   - 'agents'
+  - 'agents-healer'
   - 'tests'
 allowBuilds:
   esbuild: set this to true or false

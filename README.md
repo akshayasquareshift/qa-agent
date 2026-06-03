@@ -14,6 +14,8 @@ An AI-powered Playwright test generation, execution, and self-healing pipeline. 
 8. **Learn** — accumulates patterns in `agents/learnings.json` and reuses them on future runs
 9. **Report** — produces a Markdown coverage report with any discovered application bugs prominently flagged for developer review
 
+It also ships a **[Natural-Language Test Authoring UI](#natural-language-test-authoring-web-ui)** (`pnpm author`) — a browser tool where a non-technical user types a test in plain English, and the agent generates the Playwright code, runs it, and reports pass/fail.
+
 ---
 
 ## Prerequisites
@@ -121,6 +123,78 @@ pnpm --filter @qa/agents run run-only
 
 ---
 
+## Natural-Language Test Authoring (web UI)
+
+A browser UI where a **non-technical user** (product owner, business analyst) types a
+test in plain English. The agent translates it into executable Playwright code, runs it,
+and reports the result — no code required. Change the instruction and the agent adapts the
+test in place.
+
+> Plain English → generated Playwright code → live test run → pass/fail with a step
+> timeline. Then modify the instruction (e.g. *"now test with a coupon code applied"*) and
+> watch the agent adapt.
+
+### Start it
+
+Make sure your application is running at `BASE_URL`, then:
+
+```bash
+pnpm author
+```
+
+This launches a local server and prints the URL — open it in your browser:
+
+```
+▸ Open  http://localhost:5180
+```
+
+The default port is **5180**. If it's taken, set a different one:
+
+```bash
+NLP_PORT=4100 pnpm author
+```
+
+> **Note:** `5173` (Vite's default) is intentionally *not* used — it's frequently occupied
+> by another dev/Docker server. If you hit a blank page or an **"Upgrade Required"** (HTTP
+> 426) response, something else is squatting on the port — pick a free one via `NLP_PORT`.
+
+### Using it
+
+1. **Describe the test** in the text box, or click one of the example chips.
+   *e.g. "Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout."*
+2. Click **Generate test** — the agent writes a self-contained Playwright spec (shown on
+   the right), using your app's real routes, selectors, base URL, and seeded credentials.
+3. Click **▶ Run test** — Playwright output streams live, and you get a pass/fail badge, a
+   ✓/✕ **step timeline**, the duration, the error message, and a screenshot on failure.
+4. **Auto-heal (on by default).** If the test fails and the *"Auto-heal on failure"* box is
+   ticked, the agent automatically diagnoses the failure, rewrites the spec, and re-runs —
+   up to 3 rounds. You see each round's root cause in a heal timeline, the code panel updates
+   live to the healed version, and the result shows *"✦ self-healed in N rounds"* when it
+   goes green. Untick the box to get a single one-shot run instead.
+5. **Adapt it** — the box switches to *"Modify the test"*. Describe a change
+   (*"now test with a coupon code applied"*) and click **Adapt test**; the agent edits the
+   existing spec minimally rather than starting over. **Start over** clears everything.
+
+### How it works
+
+| Piece | Role |
+| ----- | ---- |
+| `agents/src/nlp-server.ts` | Zero-dependency HTTP server (Node built-ins). Serves the UI and exposes `/api/context`, `/api/generate`, and `/api/run` (streams Playwright output live, and drives the auto-heal loop). |
+| `agents/src/nlp-authoring.ts` | Translates plain English → Playwright spec. Three operations: **fresh** (new test), **adapt** (minimal edit of the current spec), and **heal** (rewrite a failed spec from the error + step timeline). Wraps each phase in `test.step()` so the UI can show a readable timeline. |
+| `agents/public/index.html` | The single-page UI. |
+| `tests/playwright.nlp.config.ts` | Isolated Playwright config — NLP-authored specs live in `tests/nlp-authored/` (git-ignored, regenerated per run), kept out of the main `generated/` suite. |
+
+The UI reuses the same context the autonomous agent does: it reads your app's routes,
+`data-testid` selectors, **and the real labels of clickable elements** (button/link text
+paired with their testids) via `APP_SOURCE_DIR` / `APP_MODULES_DIR`, plus any seeded login
+credentials. This action vocabulary stops the generator from guessing button text (e.g.
+targeting the real `add-product-button` instead of a guessed *"Add to cart"*). The auto-heal
+loop (max rounds configurable via `NLP_MAX_HEAL_ROUNDS`, default 3) then closes the remaining
+last-mile gaps — strict-mode selector clashes, missing preconditions — without the user
+touching code.
+
+---
+
 ## Output files
 
 | File | Description |
@@ -175,15 +249,21 @@ qa-agent/
 │   │   ├── fixer.ts            ← Claude: analyses failures, patches specs
 │   │   ├── learner.ts          ← Reads/writes learnings.json
 │   │   ├── reporter.ts         ← Builds the Markdown coverage report
+│   │   ├── nlp-server.ts       ← Natural-Language authoring web server (`pnpm author`)
+│   │   ├── nlp-authoring.ts    ← Claude: plain English → Playwright spec (fresh + adapt)
 │   │   └── types.ts            ← Shared TypeScript types
+│   ├── public/
+│   │   └── index.html          ← Natural-Language authoring UI (single page)
 │   ├── AGENT_PROMPT.md         ← Full architecture spec and prompt reference
 │   ├── learnings.json          ← Auto-generated; commit to persist across runs
 │   ├── package.json
 │   └── tsconfig.json
 ├── tests/
 │   ├── generated/              ← Spec files written here by the agent
+│   ├── nlp-authored/           ← NLP-authored spec (git-ignored, regenerated per run)
 │   ├── test-results/           ← Playwright artefacts (git-ignored)
-│   ├── playwright.config.ts
+│   ├── playwright.config.ts    ← Config for the autonomous agent suite
+│   ├── playwright.nlp.config.ts ← Config for NLP-authored tests
 │   └── package.json
 ├── .env.example                ← Copy to .env and fill in your paths
 ├── .gitignore

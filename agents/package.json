@@ -6,7 +6,8 @@
     "generate": "tsx --env-file=../.env src/index.ts",
     "plan-only": "tsx --env-file=../.env src/index.ts --plan-only",
     "generate-only": "tsx --env-file=../.env src/index.ts --generate-only",
-    "run-only": "tsx --env-file=../.env src/index.ts --run-only"
+    "run-only": "tsx --env-file=../.env src/index.ts --run-only",
+    "author": "tsx --env-file=../.env src/nlp-server.ts"
   },
   "dependencies": {},
   "devDependencies": {

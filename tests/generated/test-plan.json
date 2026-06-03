@@ -3,124 +3,781 @@
     {
       "id": "TC001",
       "title": "Load homepage successfully",
-      "pageUrl": "http://localhost:3000/",
+      "pageUrl": "http://localhost:8000/dk",
       "priority": "high",
-      "category": "smoke",
+      "category": "navigation",
       "dependsOn": [],
-      "rationale": "App must boot",
+      "rationale": "Homepage must load for any user journey",
       "stateSetup": [
-        "App running"
+        "Server running"
       ],
       "steps": [
-        "Navigate to base URL",
+        "Navigate to /dk",
         "Wait for load",
-        "Verify no error"
+        "Verify status 200"
       ],
-      "expectedOutcome": "Page renders without errors",
+      "expectedOutcome": "Homepage renders without errors",
       "selectorsToUse": [],
       "requiresAuth": false
     },
     {
       "id": "TC002",
-      "title": "Detect login page presence",
-      "pageUrl": "http://localhost:3000/login",
+      "title": "Load store listing page",
+      "pageUrl": "http://localhost:8000/dk/store",
       "priority": "high",
-      "category": "auth",
+      "category": "catalog",
       "dependsOn": [
         "TC001"
       ],
-      "rationale": "Auth entry point",
-      "stateSetup": [
-        "App running"
-      ],
+      "rationale": "Store is core product discovery page",
+      "stateSetup": [],
       "steps": [
-        "Navigate to /login",
-        "Verify form fields visible"
+        "Navigate to /dk/store",
+        "Wait for products",
+        "Verify product list visible"
       ],
-      "expectedOutcome": "Login form renders",
+      "expectedOutcome": "Store page renders product list",
       "selectorsToUse": [],
       "requiresAuth": false
     },
     {
       "id": "TC003",
-      "title": "Login with valid credentials",
-      "pageUrl": "http://localhost:3000/login",
+      "title": "Load product detail page",
+      "pageUrl": "http://localhost:8000/dk/products/item",
       "priority": "high",
-      "category": "auth",
+      "category": "catalog",
       "dependsOn": [
         "TC002"
       ],
-      "rationale": "Core auth flow",
-      "stateSetup": [
-        "Valid user exists"
-      ],
+      "rationale": "Product detail drives purchase decisions",
+      "stateSetup": [],
       "steps": [
-        "Enter credentials",
-        "Submit",
-        "Verify redirect"
+        "Navigate to product URL",
+        "Verify title and price",
+        "Verify add-to-cart visible"
       ],
-      "expectedOutcome": "User logged in and redirected",
+      "expectedOutcome": "Product page renders details",
       "selectorsToUse": [],
       "requiresAuth": false
     },
     {
       "id": "TC004",
-      "title": "Login fails with invalid password",
-      "pageUrl": "http://localhost:3000/login",
+      "title": "Load category page",
+      "pageUrl": "http://localhost:8000/dk/categories/category",
       "priority": "high",
-      "category": "auth",
+      "category": "catalog",
       "dependsOn": [
         "TC002"
       ],
-      "rationale": "Security check",
-      "stateSetup": [
-        "App running"
-      ],
+      "rationale": "Categories enable product browsing",
+      "stateSetup": [],
       "steps": [
-        "Enter wrong password",
-        "Submit",
-        "Verify error"
+        "Navigate to category URL",
+        "Verify products listed",
+        "Verify category title"
       ],
-      "expectedOutcome": "Error message displayed",
+      "expectedOutcome": "Category page lists products",
       "selectorsToUse": [],
       "requiresAuth": false
     },
     {
       "id": "TC005",
-      "title": "Login fails with empty fields",
-      "pageUrl": "http://localhost:3000/login",
+      "title": "Load collection page",
+      "pageUrl": "http://localhost:8000/dk/collections/item",
       "priority": "medium",
-      "category": "auth",
+      "category": "catalog",
       "dependsOn": [
         "TC002"
       ],
-      "rationale": "Form validation",
+      "rationale": "Collections group curated products",
+      "stateSetup": [],
+      "steps": [
+        "Navigate to collection URL",
+        "Verify products visible",
+        "Verify collection name"
+      ],
+      "expectedOutcome": "Collection page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC006",
+      "title": "Load empty cart page",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Cart must load even when empty",
       "stateSetup": [
-        "App running"
+        "No items added"
       ],
       "steps": [
+        "Navigate to /dk/cart",
+        "Verify empty state message"
+      ],
+      "expectedOutcome": "Empty cart state displays",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC007",
+      "title": "Add product to cart from PDP",
+      "pageUrl": "http://localhost:8000/dk/products/item",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC003"
+      ],
+      "rationale": "Core add-to-cart conversion path",
+      "stateSetup": [],
+      "steps": [
+        "Open product",
+        "Select variant",
+        "Click add to cart",
+        "Verify cart updated"
+      ],
+      "expectedOutcome": "Item appears in cart",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC008",
+      "title": "View cart with items",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Cart must display added items",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Navigate to cart",
+        "Verify line item",
+        "Verify totals"
+      ],
+      "expectedOutcome": "Cart shows item and totals",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC009",
+      "title": "Update cart item quantity",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Quantity updates affect totals",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Open cart",
+        "Change quantity",
+        "Verify subtotal updates"
+      ],
+      "expectedOutcome": "Totals recalculate",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC010",
+      "title": "Remove item from cart",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Users must remove unwanted items",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Open cart",
+        "Click remove",
+        "Verify item gone"
+      ],
+      "expectedOutcome": "Item removed from cart",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC011",
+      "title": "Load account login page",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Login gates account features",
+      "stateSetup": [
+        "Logged out"
+      ],
+      "steps": [
+        "Navigate to /dk/account",
+        "Verify login form visible"
+      ],
+      "expectedOutcome": "Login page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC012",
+      "title": "Login with invalid credentials fails",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Invalid auth must be rejected",
+      "stateSetup": [],
+      "steps": [
+        "Enter bad email/password",
+        "Submit",
+        "Verify error message"
+      ],
+      "expectedOutcome": "Error shown, no session",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC013",
+      "title": "Login with empty fields shows validation",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Required field validation",
+      "stateSetup": [],
+      "steps": [
         "Submit empty form",
-        "Verify validation"
+        "Verify validation errors"
       ],
       "expectedOutcome": "Required field errors shown",
       "selectorsToUse": [],
       "requiresAuth": false
     },
     {
-      "id": "TC006",
-      "title": "Unauthorized access redirects to login",
-      "pageUrl": "http://localhost:3000/dashboard",
+      "id": "TC014",
+      "title": "Register new account",
+      "pageUrl": "http://localhost:8000/dk/account",
       "priority": "high",
       "category": "auth",
       "dependsOn": [
-        "TC002"
+        "TC011"
       ],
-      "rationale": "Route protection",
+      "rationale": "Registration enables checkout",
       "stateSetup": [
-        "Not logged in"
+        "Unique email"
       ],
       "steps": [
-        "Visit protected route",
+        "Open register",
+        "Fill fields",
+        "Submit",
+        "Verify logged in"
+      ],
+      "expectedOutcome": "Account created and logged in",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC015",
+      "title": "Login with valid credentials",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC014"
+      ],
+      "rationale": "Valid login is core flow",
+      "stateSetup": [
+        "Existing account"
+      ],
+      "steps": [
+        "Enter credentials",
+        "Submit",
+        "Verify dashboard"
+      ],
+      "expectedOutcome": "User authenticated",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC016",
+      "title": "View account dashboard",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "account",
+      "dependsOn": [
+        "TC015"
+      ],
+      "rationale": "Dashboard hub for account",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate to account",
+        "Verify dashboard sections"
+      ],
+      "expectedOutcome": "Dashboard renders",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC017",
+      "title": "View account profile",
+      "pageUrl": "http://localhost:8000/dk/account/profile",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC016"
+      ],
+      "rationale": "Profile management",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate profile",
+        "Verify fields populated"
+      ],
+      "expectedOutcome": "Profile data visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC018",
+      "title": "Update profile information",
+      "pageUrl": "http://localhost:8000/dk/account/profile",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC017"
+      ],
+      "rationale": "Users edit profile data",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Edit name field",
+        "Save",
+        "Verify success"
+      ],
+      "expectedOutcome": "Profile updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC019",
+      "title": "View saved addresses",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC016"
+      ],
+      "rationale": "Addresses speed up checkout",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate addresses",
+        "Verify list visible"
+      ],
+      "expectedOutcome": "Addresses page loads",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC020",
+      "title": "Add new shipping address",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC019"
+      ],
+      "rationale": "Address CRUD - create",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Click add address",
+        "Fill form",
+        "Save",
+        "Verify in list"
+      ],
+      "expectedOutcome": "Address saved",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC021",
+      "title": "Edit existing address",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC020"
+      ],
+      "rationale": "Address CRUD - update",
+      "stateSetup": [
+        "Address exists"
+      ],
+      "steps": [
+        "Click edit",
+        "Modify fields",
+        "Save",
+        "Verify changes"
+      ],
+      "expectedOutcome": "Address updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC022",
+      "title": "Delete address",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC020"
+      ],
+      "rationale": "Address CRUD - delete",
+      "stateSetup": [
+        "Address exists"
+      ],
+      "steps": [
+        "Click delete",
+        "Confirm",
+        "Verify removed"
+      ],
+      "expectedOutcome": "Address removed",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC023",
+      "title": "Address form required field validation",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "low",
+      "category": "validation",
+      "dependsOn": [
+        "TC019"
+      ],
+      "rationale": "Form validation prevents bad data",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open add address",
+        "Submit empty",
+        "Verify errors"
+      ],
+      "expectedOutcome": "Required field errors",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC024",
+      "title": "View order history",
+      "pageUrl": "http://localhost:8000/dk/account/orders",
+      "priority": "high",
+      "category": "orders",
+      "dependsOn": [
+        "TC016"
+      ],
+      "rationale": "Order history is key account feature",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate orders",
+        "Verify list or empty state"
+      ],
+      "expectedOutcome": "Orders page loads",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC025",
+      "title": "View order detail",
+      "pageUrl": "http://localhost:8000/dk/account/orders/details/order_123",
+      "priority": "medium",
+      "category": "orders",
+      "dependsOn": [
+        "TC024"
+      ],
+      "rationale": "Order details show line items",
+      "stateSetup": [
+        "Order exists"
+      ],
+      "steps": [
+        "Open order",
+        "Verify items and status"
+      ],
+      "expectedOutcome": "Order details render",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC026",
+      "title": "Navigate to checkout from cart",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Cart to checkout transition",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Open cart",
+        "Click checkout",
+        "Verify checkout URL"
+      ],
+      "expectedOutcome": "Lands on checkout",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC027",
+      "title": "Load checkout page",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC026"
+      ],
+      "rationale": "Checkout must render",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Navigate checkout",
+        "Verify form sections"
+      ],
+      "expectedOutcome": "Checkout form loads",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC028",
+      "title": "Checkout shipping address entry",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC027"
+      ],
+      "rationale": "Shipping required for order",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Fill shipping address",
+        "Continue",
+        "Verify next step"
+      ],
+      "expectedOutcome": "Address accepted",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC029",
+      "title": "Checkout shipping method selection",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC028"
+      ],
+      "rationale": "Shipping method affects totals",
+      "stateSetup": [
+        "Address filled"
+      ],
+      "steps": [
+        "Select shipping method",
+        "Verify total updates"
+      ],
+      "expectedOutcome": "Method selected",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC030",
+      "title": "Checkout validation errors on empty form",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "medium",
+      "category": "validation",
+      "dependsOn": [
+        "TC027"
+      ],
+      "rationale": "Prevents incomplete orders",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Submit empty step",
+        "Verify errors"
+      ],
+      "expectedOutcome": "Validation errors shown",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC031",
+      "title": "Empty cart blocks checkout",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "medium",
+      "category": "checkout",
+      "dependsOn": [
+        "TC006"
+      ],
+      "rationale": "Cannot checkout empty cart",
+      "stateSetup": [
+        "Empty cart"
+      ],
+      "steps": [
+        "Navigate checkout with empty cart",
+        "Verify redirect or message"
+      ],
+      "expectedOutcome": "Blocked or redirected",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC032",
+      "title": "Order confirmed page renders",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/confirmed",
+      "priority": "medium",
+      "category": "orders",
+      "dependsOn": [
+        "TC027"
+      ],
+      "rationale": "Post-purchase confirmation",
+      "stateSetup": [
+        "Completed order"
+      ],
+      "steps": [
+        "Navigate confirmation URL",
+        "Verify order summary"
+      ],
+      "expectedOutcome": "Confirmation displays",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC033",
+      "title": "Order transfer accept page loads",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/transfer/token_abc/accept",
+      "priority": "low",
+      "category": "orders",
+      "dependsOn": [
+        "TC032"
+      ],
+      "rationale": "Order transfer accept flow",
+      "stateSetup": [
+        "Valid token"
+      ],
+      "steps": [
+        "Navigate accept URL",
+        "Verify confirmation UI"
+      ],
+      "expectedOutcome": "Accept page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC034",
+      "title": "Order transfer decline page loads",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/transfer/token_abc/decline",
+      "priority": "low",
+      "category": "orders",
+      "dependsOn": [
+        "TC032"
+      ],
+      "rationale": "Order transfer decline flow",
+      "stateSetup": [
+        "Valid token"
+      ],
+      "steps": [
+        "Navigate decline URL",
+        "Verify decline UI"
+      ],
+      "expectedOutcome": "Decline page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC035",
+      "title": "Order transfer page loads",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/transfer/token_abc",
+      "priority": "low",
+      "category": "orders",
+      "dependsOn": [
+        "TC032"
+      ],
+      "rationale": "Transfer landing page",
+      "stateSetup": [
+        "Valid token"
+      ],
+      "steps": [
+        "Navigate transfer URL",
+        "Verify content"
+      ],
+      "expectedOutcome": "Transfer page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC036",
+      "title": "Logged-out user redirected from account",
+      "pageUrl": "http://localhost:8000/dk/account/profile",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Protected routes must enforce auth",
+      "stateSetup": [
+        "Logged out"
+      ],
+      "steps": [
+        "Navigate profile",
+        "Verify redirect to login"
+      ],
+      "expectedOutcome": "Redirected to login",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC037",
+      "title": "Logged-out blocked from orders",
+      "pageUrl": "http://localhost:8000/dk/account/orders",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Order history is private",
+      "stateSetup": [
+        "Logged out"
+      ],
+      "steps": [
+        "Navigate orders",
         "Verify redirect"
       ],
       "expectedOutcome": "Redirected to login",
@@ -128,861 +785,234 @@
       "requiresAuth": false
     },
     {
-      "id": "TC007",
-      "title": "Dashboard loads after login",
-      "pageUrl": "http://localhost:3000/dashboard",
-      "priority": "high",
-      "category": "navigation",
-      "dependsOn": [
-        "TC003"
-      ],
-      "rationale": "Post-login landing",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Login",
-        "Verify dashboard"
-      ],
-      "expectedOutcome": "Dashboard renders",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC008",
-      "title": "Navigate to patients list",
-      "pageUrl": "http://localhost:3000/patients",
-      "priority": "high",
-      "category": "patients",
-      "dependsOn": [
-        "TC007"
-      ],
-      "rationale": "Core EMR feature",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Click patients nav",
-        "Verify list"
-      ],
-      "expectedOutcome": "Patient list visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC009",
-      "title": "Create new patient",
-      "pageUrl": "http://localhost:3000/patients/new",
-      "priority": "high",
-      "category": "patients",
-      "dependsOn": [
-        "TC008"
-      ],
-      "rationale": "Core CRUD",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Open form",
-        "Fill fields",
-        "Submit"
-      ],
-      "expectedOutcome": "Patient created",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC010",
-      "title": "Validate required patient fields",
-      "pageUrl": "http://localhost:3000/patients/new",
+      "id": "TC038",
+      "title": "Logged-out blocked from addresses",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
       "priority": "medium",
-      "category": "patients",
-      "dependsOn": [
-        "TC009"
-      ],
-      "rationale": "Data integrity",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Submit empty form",
-        "Verify errors"
-      ],
-      "expectedOutcome": "Validation errors shown",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC011",
-      "title": "View patient details",
-      "pageUrl": "http://localhost:3000/patients/:id",
-      "priority": "high",
-      "category": "patients",
-      "dependsOn": [
-        "TC009"
-      ],
-      "rationale": "Read flow",
-      "stateSetup": [
-        "Patient exists"
-      ],
-      "steps": [
-        "Click patient row",
-        "Verify details"
-      ],
-      "expectedOutcome": "Patient details visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC012",
-      "title": "Edit patient record",
-      "pageUrl": "http://localhost:3000/patients/:id/edit",
-      "priority": "high",
-      "category": "patients",
-      "dependsOn": [
-        "TC011"
-      ],
-      "rationale": "Update flow",
-      "stateSetup": [
-        "Patient exists"
-      ],
-      "steps": [
-        "Open edit",
-        "Change field",
-        "Save"
-      ],
-      "expectedOutcome": "Patient updated",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC013",
-      "title": "Delete patient record",
-      "pageUrl": "http://localhost:3000/patients/:id",
-      "priority": "medium",
-      "category": "patients",
-      "dependsOn": [
-        "TC011"
-      ],
-      "rationale": "Delete flow",
-      "stateSetup": [
-        "Patient exists"
-      ],
-      "steps": [
-        "Click delete",
-        "Confirm",
-        "Verify removed"
-      ],
-      "expectedOutcome": "Patient deleted",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC014",
-      "title": "Search patients by name",
-      "pageUrl": "http://localhost:3000/patients",
-      "priority": "medium",
-      "category": "patients",
-      "dependsOn": [
-        "TC008"
-      ],
-      "rationale": "Search UX",
-      "stateSetup": [
-        "Patients exist"
-      ],
-      "steps": [
-        "Type in search",
-        "Verify filter"
-      ],
-      "expectedOutcome": "Results filtered",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC015",
-      "title": "Filter patients by status",
-      "pageUrl": "http://localhost:3000/patients",
-      "priority": "low",
-      "category": "patients",
-      "dependsOn": [
-        "TC008"
-      ],
-      "rationale": "Filter UX",
-      "stateSetup": [
-        "Patients exist"
-      ],
-      "steps": [
-        "Apply filter",
-        "Verify results"
-      ],
-      "expectedOutcome": "List filtered",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC016",
-      "title": "Paginate patient list",
-      "pageUrl": "http://localhost:3000/patients",
-      "priority": "low",
-      "category": "patients",
-      "dependsOn": [
-        "TC008"
-      ],
-      "rationale": "Pagination",
-      "stateSetup": [
-        "Many patients"
-      ],
-      "steps": [
-        "Click next page",
-        "Verify update"
-      ],
-      "expectedOutcome": "Next page shown",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC017",
-      "title": "Navigate to appointments",
-      "pageUrl": "http://localhost:3000/appointments",
-      "priority": "high",
-      "category": "appointments",
-      "dependsOn": [
-        "TC007"
-      ],
-      "rationale": "Core feature",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Click appointments",
-        "Verify list"
-      ],
-      "expectedOutcome": "Appointments list visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC018",
-      "title": "Create new appointment",
-      "pageUrl": "http://localhost:3000/appointments/new",
-      "priority": "high",
-      "category": "appointments",
-      "dependsOn": [
-        "TC017",
-        "TC009"
-      ],
-      "rationale": "Scheduling flow",
-      "stateSetup": [
-        "Patient exists"
-      ],
-      "steps": [
-        "Open form",
-        "Select patient/time",
-        "Submit"
-      ],
-      "expectedOutcome": "Appointment created",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC019",
-      "title": "View appointment details",
-      "pageUrl": "http://localhost:3000/appointments/:id",
-      "priority": "medium",
-      "category": "appointments",
-      "dependsOn": [
-        "TC018"
-      ],
-      "rationale": "Read flow",
-      "stateSetup": [
-        "Appointment exists"
-      ],
-      "steps": [
-        "Click appointment",
-        "Verify details"
-      ],
-      "expectedOutcome": "Details visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC020",
-      "title": "Reschedule appointment",
-      "pageUrl": "http://localhost:3000/appointments/:id/edit",
-      "priority": "medium",
-      "category": "appointments",
-      "dependsOn": [
-        "TC019"
-      ],
-      "rationale": "Update flow",
-      "stateSetup": [
-        "Appointment exists"
-      ],
-      "steps": [
-        "Open edit",
-        "Change time",
-        "Save"
-      ],
-      "expectedOutcome": "Appointment updated",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC021",
-      "title": "Cancel appointment",
-      "pageUrl": "http://localhost:3000/appointments/:id",
-      "priority": "medium",
-      "category": "appointments",
-      "dependsOn": [
-        "TC019"
-      ],
-      "rationale": "Cancellation",
-      "stateSetup": [
-        "Appointment exists"
-      ],
-      "steps": [
-        "Click cancel",
-        "Confirm",
-        "Verify status"
-      ],
-      "expectedOutcome": "Appointment cancelled",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC022",
-      "title": "Prevent double-booking same slot",
-      "pageUrl": "http://localhost:3000/appointments/new",
-      "priority": "medium",
-      "category": "appointments",
-      "dependsOn": [
-        "TC018"
-      ],
-      "rationale": "Business rule",
-      "stateSetup": [
-        "Slot booked"
-      ],
-      "steps": [
-        "Book same slot",
-        "Verify error"
-      ],
-      "expectedOutcome": "Conflict error shown",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC023",
-      "title": "Navigate to encounters",
-      "pageUrl": "http://localhost:3000/encounters",
-      "priority": "high",
-      "category": "encounters",
-      "dependsOn": [
-        "TC007"
-      ],
-      "rationale": "Clinical core",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Open encounters",
-        "Verify list"
-      ],
-      "expectedOutcome": "Encounters list visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC024",
-      "title": "Create new encounter",
-      "pageUrl": "http://localhost:3000/encounters/new",
-      "priority": "high",
-      "category": "encounters",
-      "dependsOn": [
-        "TC023",
-        "TC009"
-      ],
-      "rationale": "Clinical entry",
-      "stateSetup": [
-        "Patient exists"
-      ],
-      "steps": [
-        "Open form",
-        "Fill notes",
-        "Submit"
-      ],
-      "expectedOutcome": "Encounter saved",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC025",
-      "title": "View encounter details",
-      "pageUrl": "http://localhost:3000/encounters/:id",
-      "priority": "medium",
-      "category": "encounters",
-      "dependsOn": [
-        "TC024"
-      ],
-      "rationale": "Read flow",
-      "stateSetup": [
-        "Encounter exists"
-      ],
-      "steps": [
-        "Click encounter",
-        "Verify details"
-      ],
-      "expectedOutcome": "Details visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC026",
-      "title": "Edit encounter notes",
-      "pageUrl": "http://localhost:3000/encounters/:id/edit",
-      "priority": "medium",
-      "category": "encounters",
-      "dependsOn": [
-        "TC025"
-      ],
-      "rationale": "Update flow",
-      "stateSetup": [
-        "Encounter exists"
-      ],
-      "steps": [
-        "Edit notes",
-        "Save"
-      ],
-      "expectedOutcome": "Notes updated",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC027",
-      "title": "Add prescription to encounter",
-      "pageUrl": "http://localhost:3000/encounters/:id",
-      "priority": "medium",
-      "category": "prescriptions",
-      "dependsOn": [
-        "TC025"
-      ],
-      "rationale": "Clinical workflow",
-      "stateSetup": [
-        "Encounter open"
-      ],
-      "steps": [
-        "Add med",
-        "Submit"
-      ],
-      "expectedOutcome": "Prescription added",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC028",
-      "title": "View patient prescription history",
-      "pageUrl": "http://localhost:3000/patients/:id/prescriptions",
-      "priority": "medium",
-      "category": "prescriptions",
-      "dependsOn": [
-        "TC027"
-      ],
-      "rationale": "History view",
-      "stateSetup": [
-        "Prescription exists"
-      ],
-      "steps": [
-        "Open history",
-        "Verify list"
-      ],
-      "expectedOutcome": "Prescriptions visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC029",
-      "title": "Add lab order to encounter",
-      "pageUrl": "http://localhost:3000/encounters/:id",
-      "priority": "medium",
-      "category": "labs",
-      "dependsOn": [
-        "TC025"
-      ],
-      "rationale": "Lab workflow",
-      "stateSetup": [
-        "Encounter open"
-      ],
-      "steps": [
-        "Add lab",
-        "Submit"
-      ],
-      "expectedOutcome": "Lab order created",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC030",
-      "title": "View lab results list",
-      "pageUrl": "http://localhost:3000/labs",
-      "priority": "medium",
-      "category": "labs",
-      "dependsOn": [
-        "TC007"
-      ],
-      "rationale": "Lab module",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Open labs",
-        "Verify list"
-      ],
-      "expectedOutcome": "Lab results visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC031",
-      "title": "View billing/invoices list",
-      "pageUrl": "http://localhost:3000/billing",
-      "priority": "medium",
-      "category": "billing",
-      "dependsOn": [
-        "TC007"
-      ],
-      "rationale": "Billing module",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Open billing",
-        "Verify list"
-      ],
-      "expectedOutcome": "Invoices visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC032",
-      "title": "Create invoice for patient",
-      "pageUrl": "http://localhost:3000/billing/new",
-      "priority": "medium",
-      "category": "billing",
-      "dependsOn": [
-        "TC031",
-        "TC009"
-      ],
-      "rationale": "Billing flow",
-      "stateSetup": [
-        "Patient exists"
-      ],
-      "steps": [
-        "Open form",
-        "Add items",
-        "Save"
-      ],
-      "expectedOutcome": "Invoice created",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC033",
-      "title": "Mark invoice as paid",
-      "pageUrl": "http://localhost:3000/billing/:id",
-      "priority": "low",
-      "category": "billing",
-      "dependsOn": [
-        "TC032"
-      ],
-      "rationale": "Payment state",
-      "stateSetup": [
-        "Invoice exists"
-      ],
-      "steps": [
-        "Click paid",
-        "Confirm"
-      ],
-      "expectedOutcome": "Status updated",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC034",
-      "title": "Logout from app",
-      "pageUrl": "http://localhost:3000/dashboard",
-      "priority": "high",
       "category": "auth",
       "dependsOn": [
-        "TC007"
+        "TC011"
       ],
-      "rationale": "Session end",
+      "rationale": "Addresses are private",
       "stateSetup": [
-        "Logged in"
+        "Logged out"
       ],
       "steps": [
-        "Click logout",
+        "Navigate addresses",
         "Verify redirect"
       ],
-      "expectedOutcome": "Returned to login",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC035",
-      "title": "Session persists on refresh",
-      "pageUrl": "http://localhost:3000/dashboard",
-      "priority": "medium",
-      "category": "auth",
-      "dependsOn": [
-        "TC007"
-      ],
-      "rationale": "Session storage",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Refresh page",
-        "Verify still in"
-      ],
-      "expectedOutcome": "Still logged in",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC036",
-      "title": "Profile/settings page loads",
-      "pageUrl": "http://localhost:3000/settings",
-      "priority": "low",
-      "category": "settings",
-      "dependsOn": [
-        "TC007"
-      ],
-      "rationale": "Settings access",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Open settings",
-        "Verify content"
-      ],
-      "expectedOutcome": "Settings visible",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC037",
-      "title": "Update user profile",
-      "pageUrl": "http://localhost:3000/settings/profile",
-      "priority": "low",
-      "category": "settings",
-      "dependsOn": [
-        "TC036"
-      ],
-      "rationale": "Profile edit",
-      "stateSetup": [
-        "Logged in"
-      ],
-      "steps": [
-        "Edit name",
-        "Save"
-      ],
-      "expectedOutcome": "Profile updated",
-      "selectorsToUse": [],
-      "requiresAuth": true
-    },
-    {
-      "id": "TC038",
-      "title": "404 on unknown route",
-      "pageUrl": "http://localhost:3000/nonexistent-xyz",
-      "priority": "low",
-      "category": "navigation",
-      "dependsOn": [
-        "TC001"
-      ],
-      "rationale": "Error handling",
-      "stateSetup": [
-        "App running"
-      ],
-      "steps": [
-        "Visit bad URL",
-        "Verify 404"
-      ],
-      "expectedOutcome": "Not found page",
+      "expectedOutcome": "Redirected to login",
       "selectorsToUse": [],
       "requiresAuth": false
     },
     {
       "id": "TC039",
-      "title": "Sidebar navigation works",
-      "pageUrl": "http://localhost:3000/dashboard",
-      "priority": "low",
-      "category": "navigation",
+      "title": "Logout from account",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "medium",
+      "category": "auth",
       "dependsOn": [
-        "TC007"
+        "TC015"
       ],
-      "rationale": "Nav UX",
+      "rationale": "Users must be able to logout",
       "stateSetup": [
         "Logged in"
       ],
       "steps": [
-        "Click each nav",
-        "Verify route"
+        "Click logout",
+        "Verify session ended"
       ],
-      "expectedOutcome": "All links work",
+      "expectedOutcome": "Logged out",
       "selectorsToUse": [],
       "requiresAuth": true
     },
     {
       "id": "TC040",
-      "title": "Breadcrumbs reflect location",
-      "pageUrl": "http://localhost:3000/patients/:id",
-      "priority": "low",
+      "title": "Navigate store to product detail",
+      "pageUrl": "http://localhost:8000/dk/store",
+      "priority": "medium",
       "category": "navigation",
       "dependsOn": [
-        "TC011"
+        "TC002"
       ],
-      "rationale": "Nav clarity",
-      "stateSetup": [
-        "On detail page"
-      ],
+      "rationale": "Product discovery navigation",
+      "stateSetup": [],
       "steps": [
-        "Verify breadcrumbs"
+        "Open store",
+        "Click product card",
+        "Verify PDP loads"
       ],
-      "expectedOutcome": "Breadcrumbs correct",
+      "expectedOutcome": "Lands on product page",
       "selectorsToUse": [],
-      "requiresAuth": true
+      "requiresAuth": false
     },
     {
       "id": "TC041",
-      "title": "Empty state for no patients",
-      "pageUrl": "http://localhost:3000/patients",
+      "title": "Navigate category to product",
+      "pageUrl": "http://localhost:8000/dk/categories/category",
       "priority": "low",
-      "category": "patients",
+      "category": "navigation",
       "dependsOn": [
-        "TC008"
+        "TC004"
       ],
-      "rationale": "Empty UX",
-      "stateSetup": [
-        "No patients"
-      ],
+      "rationale": "Category browsing flow",
+      "stateSetup": [],
       "steps": [
-        "View list",
-        "Verify empty msg"
+        "Open category",
+        "Click product",
+        "Verify PDP"
       ],
-      "expectedOutcome": "Empty state shown",
+      "expectedOutcome": "PDP loads",
       "selectorsToUse": [],
-      "requiresAuth": true
+      "requiresAuth": false
     },
     {
       "id": "TC042",
-      "title": "Sort patients by column",
-      "pageUrl": "http://localhost:3000/patients",
-      "priority": "low",
-      "category": "patients",
+      "title": "Product variant selection",
+      "pageUrl": "http://localhost:8000/dk/products/item",
+      "priority": "medium",
+      "category": "catalog",
       "dependsOn": [
-        "TC008"
+        "TC003"
       ],
-      "rationale": "Sort UX",
-      "stateSetup": [
-        "Patients exist"
-      ],
+      "rationale": "Variants change price/stock",
+      "stateSetup": [],
       "steps": [
-        "Click column",
-        "Verify sort"
+        "Open product",
+        "Select variant",
+        "Verify UI updates"
       ],
-      "expectedOutcome": "List sorted",
+      "expectedOutcome": "Variant selected",
       "selectorsToUse": [],
-      "requiresAuth": true
+      "requiresAuth": false
     },
     {
       "id": "TC043",
-      "title": "Calendar view for appointments",
-      "pageUrl": "http://localhost:3000/appointments/calendar",
+      "title": "404 on invalid product handle",
+      "pageUrl": "http://localhost:8000/dk/products/nonexistent-xyz",
       "priority": "low",
-      "category": "appointments",
+      "category": "error",
       "dependsOn": [
-        "TC017"
+        "TC003"
       ],
-      "rationale": "Calendar UX",
-      "stateSetup": [
-        "Logged in"
-      ],
+      "rationale": "Invalid handles must 404",
+      "stateSetup": [],
       "steps": [
-        "Open calendar",
-        "Verify render"
+        "Navigate bad URL",
+        "Verify 404 page"
       ],
-      "expectedOutcome": "Calendar visible",
+      "expectedOutcome": "404 shown",
       "selectorsToUse": [],
-      "requiresAuth": true
+      "requiresAuth": false
     },
     {
       "id": "TC044",
-      "title": "Mobile responsive layout",
-      "pageUrl": "http://localhost:3000/dashboard",
+      "title": "404 on invalid category",
+      "pageUrl": "http://localhost:8000/dk/categories/nonexistent",
       "priority": "low",
-      "category": "responsive",
+      "category": "error",
       "dependsOn": [
-        "TC007"
+        "TC004"
       ],
-      "rationale": "Mobile UX",
-      "stateSetup": [
-        "Logged in"
-      ],
+      "rationale": "Invalid categories 404",
+      "stateSetup": [],
       "steps": [
-        "Set mobile viewport",
-        "Verify layout"
+        "Navigate bad URL",
+        "Verify 404"
       ],
-      "expectedOutcome": "Layout adapts",
+      "expectedOutcome": "404 shown",
       "selectorsToUse": [],
-      "requiresAuth": true
+      "requiresAuth": false
     },
     {
       "id": "TC045",
-      "title": "Validate email format on patient form",
-      "pageUrl": "http://localhost:3000/patients/new",
-      "priority": "low",
-      "category": "patients",
+      "title": "Cart persists across page reload",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "medium",
+      "category": "cart",
       "dependsOn": [
-        "TC009"
+        "TC008"
       ],
-      "rationale": "Input validation",
+      "rationale": "Cart should persist via session",
       "stateSetup": [
-        "Logged in"
+        "Item in cart"
       ],
       "steps": [
-        "Enter bad email",
+        "Add item",
+        "Reload",
+        "Verify cart unchanged"
+      ],
+      "expectedOutcome": "Cart persists",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC046",
+      "title": "Register with existing email fails",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC014"
+      ],
+      "rationale": "Duplicate emails rejected",
+      "stateSetup": [
+        "Account exists"
+      ],
+      "steps": [
+        "Register same email",
         "Verify error"
       ],
-      "expectedOutcome": "Format error shown",
+      "expectedOutcome": "Duplicate error shown",
       "selectorsToUse": [],
-      "requiresAuth": true
+      "requiresAuth": false
+    },
+    {
+      "id": "TC047",
+      "title": "Homepage navigation links work",
+      "pageUrl": "http://localhost:8000/dk",
+      "priority": "low",
+      "category": "navigation",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Header nav must work",
+      "stateSetup": [],
+      "steps": [
+        "Click nav links",
+        "Verify navigation"
+      ],
+      "expectedOutcome": "Links navigate correctly",
+      "selectorsToUse": [],
+      "requiresAuth": false
     }
   ],
   "skippedFlows": [
     {
-      "flow": "Email verification",
-      "reason": "Requires inbox access",
-      "enabledBy": "Test email API"
-    },
-    {
-      "flow": "SMS/OTP login",
-      "reason": "Requires phone access",
-      "enabledBy": "OTP bypass in test env"
-    },
-    {
       "flow": "Payment processing",
-      "reason": "External processor required",
-      "enabledBy": "Sandbox credentials"
+      "reason": "Requires external payment processor credentials",
+      "enabledBy": "Test payment gateway sandbox keys"
     },
     {
-      "flow": "OAuth third-party login",
-      "reason": "External IdP",
-      "enabledBy": "Test OAuth provider"
+      "flow": "Email verification",
+      "reason": "Requires inbox access for verification links",
+      "enabledBy": "Test inbox API (Mailtrap)"
     },
     {
-      "flow": "Background jobs/cron",
-      "reason": "No browser surface",
-      "enabledBy": "Admin API access"
+      "flow": "Password reset via email",
+      "reason": "Email-link flow needs inbox access",
+      "enabledBy": "Test email inbox integration"
+    },
+    {
+      "flow": "OAuth social login",
+      "reason": "Requires third-party OAuth provider credentials",
+      "enabledBy": "Test OAuth provider accounts"
+    },
+    {
+      "flow": "Webhook order events",
+      "reason": "Server-side flow with no browser surface",
+      "enabledBy": "Direct backend integration tests"
     }
   ],
-  "generatedAt": "2026-05-26T16:47:35.309Z"
+  "generatedAt": "2026-06-02T09:37:27.395Z"
 }
