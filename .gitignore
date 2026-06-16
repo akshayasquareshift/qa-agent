@@ -9,6 +9,9 @@ tests/blob-archive/
 # Natural-Language authoring scratch spec (regenerated on every run from the UI)
 tests/nlp-authored/
 
+# Full-suite pipeline per-step timing state (written by the author UI)
+tests/generated/.pipeline-timings.json
+
 # Generated spec files — commit if you want to version them; ignore if you prefer a clean repo
 # tests/generated/*.spec.ts
 # tests/generated/test-plan.json

@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "generate": "tsx --env-file=../.env src/index.ts",
+    "generate:ui": "tsx src/index.ts",
+    "generate:ui:generate": "tsx src/index.ts --generate-only",
+    "generate:ui:run": "tsx src/index.ts --run-only",
     "plan-only": "tsx --env-file=../.env src/index.ts --plan-only",
     "generate-only": "tsx --env-file=../.env src/index.ts --generate-only",
     "run-only": "tsx --env-file=../.env src/index.ts --run-only",

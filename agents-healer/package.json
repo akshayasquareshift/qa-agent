@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "scripts": {
     "heal": "tsx --env-file=../.env src/index.ts",
-    "heal:demo": "tsx --env-file=../.env src/index.ts --demo"
+    "heal:demo": "tsx --env-file=../.env src/index.ts --demo",
+    "heal:ui": "tsx src/index.ts"
   },
   "dependencies": {
     "playwright": "^1.49.0"

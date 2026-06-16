@@ -5,9 +5,23 @@ import { spawn } from "child_process";
 import { readCodebaseContext } from "./codebase-reader";
 import { loadSeedState } from "./seed-state";
 import { authorTestFromNaturalLanguage, healNlpSpec } from "./nlp-authoring";
+import {
+  runFullPipeline,
+  cleanGeneratedArtifacts,
+  ALLOWED_CONFIG_KEYS,
+  type PipelineControls,
+  type PipelineMode,
+} from "./nlp-pipeline";
 import type { AppContext } from "./types";
 
 const MAX_HEAL_ROUNDS = parseInt(process.env.NLP_MAX_HEAL_ROUNDS ?? "3", 10);
+
+// Only one full-suite pipeline may run at a time (it drives browsers + the DB).
+let pipelineRunning = false;
+// Reference to the in-flight run's controls so the out-of-band pause/resume/stop
+// endpoints can reach the streaming run while its response is still open.
+let activeControls: PipelineControls | null = null;
+const TEST_PLAN_FILE = path.join(__dirname, "../../tests", "generated", "test-plan.json");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Natural-Language Test Authoring — web server
@@ -91,7 +105,15 @@ const MIME: Record<string, string> = {
   ".jpeg": "image/jpeg",
   ".webm": "video/webm",
   ".svg": "image/svg+xml",
+  ".json": "application/json; charset=utf-8",
+  ".zip": "application/zip",
+  ".txt": "text/plain; charset=utf-8",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ttf": "font/ttf",
 };
+
+const REPORT_DIR = path.join(__dirname, "../../tests/playwright-report");
 
 // ── route handlers ─────────────────────────────────────────────────────────
 
@@ -378,6 +400,159 @@ function handleArtifact(res: http.ServerResponse, relPath: string): void {
   fs.createReadStream(abs).pipe(res);
 }
 
+// ── Full-suite pipeline (tab 2) ───────────────────────────────────────────
+
+// Pre-fill the config form with the values the server already has (from .env),
+// so the user edits rather than retypes. Password included since this is a
+// local-only dev tool bound to the user's own test account.
+function handlePipelineDefaults(res: http.ServerResponse): void {
+  const config: Record<string, string> = {};
+  for (const key of ALLOWED_CONFIG_KEYS) config[key] = process.env[key] ?? "";
+  sendJson(res, 200, {
+    config,
+    iterations: parseInt(process.env.MAX_FIX_ROUNDS ?? "3", 10),
+    running: pipelineRunning,
+  });
+}
+
+async function handlePipelineRun(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  const raw = await readBody(req);
+  let body: { config?: Record<string, string>; iterations?: number; mode?: PipelineMode };
+  try {
+    body = JSON.parse(raw || "{}");
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body" });
+  }
+
+  if (pipelineRunning) {
+    return sendJson(res, 409, { error: "A full-suite run is already in progress." });
+  }
+
+  const mode: PipelineMode = body.mode === "run" ? "run" : "generate";
+  const config = body.config ?? {};
+  // Minimal validation — the recon phase needs these to read the app source.
+  const missing = ["BASE_URL", "APP_SOURCE_DIR", "APP_MODULES_DIR"].filter((k) => !config[k]?.trim());
+  if (missing.length) {
+    return sendJson(res, 400, { error: `Missing required field(s): ${missing.join(", ")}` });
+  }
+  // Run mode replays an existing plan — refuse if nothing has been generated yet.
+  if (mode === "run" && !fs.existsSync(TEST_PLAN_FILE)) {
+    return sendJson(res, 400, { error: "No generated test plan found — generate test cases first." });
+  }
+  const iterations = Math.max(0, Math.min(body.iterations ?? 3, 10));
+
+  pipelineRunning = true;
+  res.writeHead(200, {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+  // Guard against writing to a socket that the client already closed.
+  const emit = (event: unknown) => {
+    try { if (!res.writableEnded) res.write(JSON.stringify(event) + "\n"); } catch { /* socket gone */ }
+  };
+
+  const controls: PipelineControls = {};
+  activeControls = controls;
+  let finished = false;
+  // Kill the child process tree if the browser navigates away / closes the
+  // stream mid-run. `res.on('close')` is the reliable client-disconnect signal
+  // during a streaming response (req 'close' may fire once the body is read).
+  res.on("close", () => { if (!finished) controls.abort?.(); });
+
+  try {
+    await runFullPipeline(config, iterations, emit, controls, mode);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    emit({ type: "log", source: "agent", line: `Pipeline error: ${msg}` });
+    emit({ type: "done", mode, agentExitCode: 1, hasReport: false });
+  } finally {
+    finished = true;
+    pipelineRunning = false;
+    activeControls = null;
+    res.end();
+  }
+}
+
+// ── pause / resume / stop / clean (out-of-band controls) ──────────────────────
+function handlePipelinePause(res: http.ServerResponse): void {
+  if (!activeControls) return sendJson(res, 409, { error: "No run in progress." });
+  activeControls.pause?.();
+  sendJson(res, 200, { paused: true });
+}
+
+function handlePipelineResume(res: http.ServerResponse): void {
+  if (!activeControls) return sendJson(res, 409, { error: "No run in progress." });
+  activeControls.resume?.();
+  sendJson(res, 200, { paused: false });
+}
+
+function handlePipelineStop(res: http.ServerResponse): void {
+  if (!activeControls) return sendJson(res, 200, { stopped: false });
+  activeControls.abort?.();
+  sendJson(res, 200, { stopped: true });
+}
+
+function handlePipelineClean(res: http.ServerResponse): void {
+  if (pipelineRunning) {
+    return sendJson(res, 409, { error: "Stop the current run before starting over." });
+  }
+  const removed = cleanGeneratedArtifacts();
+  sendJson(res, 200, { removed });
+}
+
+// Save an edited generated spec back to disk so the next "Run test cases" uses
+// the user's edits. Only existing *.spec.ts files under tests/generated/ may be
+// written, and not while a run is in progress.
+const GENERATED_DIR = path.join(__dirname, "../../tests", "generated");
+async function handlePipelineSpecSave(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  const raw = await readBody(req);
+  let body: { file?: string; code?: string };
+  try {
+    body = JSON.parse(raw || "{}");
+  } catch {
+    return sendJson(res, 400, { error: "Invalid JSON body" });
+  }
+  if (pipelineRunning) {
+    return sendJson(res, 409, { error: "Cannot edit a test case while a run is in progress." });
+  }
+  const code = body.code ?? "";
+  const abs = path.resolve(path.join(__dirname, "../.."), body.file ?? "");
+  if (!abs.startsWith(GENERATED_DIR + path.sep) || !abs.endsWith(".spec.ts")) {
+    return sendJson(res, 400, { error: "Invalid spec path." });
+  }
+  if (!fs.existsSync(abs)) {
+    return sendJson(res, 404, { error: "Spec file not found — regenerate first." });
+  }
+  try {
+    fs.writeFileSync(abs, code, "utf-8");
+    sendJson(res, 200, { ok: true });
+  } catch (err) {
+    sendJson(res, 500, { error: `Failed to save: ${err instanceof Error ? err.message : String(err)}` });
+  }
+}
+
+// Serve the merged Playwright HTML report (index.html wrapper + tests.html +
+// coverage.html + data/ assets) under /report/ so the "View report" button can
+// open it same-origin (its iframes/asset paths are relative).
+function serveReport(res: http.ServerResponse, urlPath: string): void {
+  let rel = urlPath.replace(/^\/report\/?/, "");
+  if (rel === "") rel = "index.html";
+  const abs = path.resolve(REPORT_DIR, rel);
+  if (!abs.startsWith(REPORT_DIR) || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+    if (!fs.existsSync(path.join(REPORT_DIR, "index.html"))) {
+      res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" })
+        .end("<h2>No report yet</h2><p>Run the test cases first — the HTML report is generated at the end of a run.</p>");
+      return;
+    }
+    res.writeHead(404).end("Not found");
+    return;
+  }
+  const ext = path.extname(abs).toLowerCase();
+  res.writeHead(200, { "Content-Type": MIME[ext] ?? "application/octet-stream" });
+  fs.createReadStream(abs).pipe(res);
+}
+
 function serveStatic(res: http.ServerResponse, urlPath: string): void {
   const file = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const abs = path.resolve(PUBLIC_DIR, file);
@@ -386,7 +561,12 @@ function serveStatic(res: http.ServerResponse, urlPath: string): void {
     return;
   }
   const ext = path.extname(abs).toLowerCase();
-  res.writeHead(200, { "Content-Type": MIME[ext] ?? "application/octet-stream" });
+  // No-cache: this is a dev tool that ships UI updates frequently — never let
+  // the browser serve a stale index.html (which would run outdated JS).
+  res.writeHead(200, {
+    "Content-Type": MIME[ext] ?? "application/octet-stream",
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+  });
   fs.createReadStream(abs).pipe(res);
 }
 
@@ -400,7 +580,18 @@ const server = http.createServer(async (req, res) => {
     if (route === "GET /api/context") return handleContext(res);
     if (route === "POST /api/generate") return void (await handleGenerate(req, res));
     if (route === "POST /api/run") return void (await handleRun(req, res));
+    if (route === "GET /api/pipeline/defaults") return handlePipelineDefaults(res);
+    if (route === "POST /api/pipeline/run") return void (await handlePipelineRun(req, res));
+    if (route === "POST /api/pipeline/pause") return handlePipelinePause(res);
+    if (route === "POST /api/pipeline/resume") return handlePipelineResume(res);
+    if (route === "POST /api/pipeline/stop") return handlePipelineStop(res);
+    if (route === "POST /api/pipeline/clean") return handlePipelineClean(res);
+    if (route === "POST /api/pipeline/spec") return void (await handlePipelineSpecSave(req, res));
     if (route === "GET /api/artifact") return handleArtifact(res, url.searchParams.get("path") ?? "");
+
+    if (req.method === "GET" && (url.pathname === "/report" || url.pathname.startsWith("/report/"))) {
+      return serveReport(res, url.pathname);
+    }
 
     if (req.method === "GET") return serveStatic(res, url.pathname);
 
