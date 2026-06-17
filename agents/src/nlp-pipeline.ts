@@ -20,6 +20,20 @@ const GENERATED_DIR = path.join(REPO_ROOT, "tests", "generated");
 const TEST_PLAN_JSON = path.join(GENERATED_DIR, "test-plan.json");
 const COVERAGE_JSON = path.join(GENERATED_DIR, "coverage-report.json");
 const HEALING_DIR = path.join(GENERATED_DIR, "healing");
+const HEALER_SUITES_DIR = path.join(REPO_ROOT, "agents-healer", "suites");
+
+// The self-healing executor only makes sense with app-relevant healable suites.
+// The bundled demo (`demo.suite.ts`) is excluded so we never run/show unrelated
+// demo data — true only when a real `*.suite.ts` / `*.suite.json` is present.
+function hasRelevantHealerSuites(): boolean {
+  try {
+    return fs.readdirSync(HEALER_SUITES_DIR).some(
+      (f) => (f.endsWith(".suite.ts") || f.endsWith(".suite.json")) && f !== "demo.suite.ts"
+    );
+  } catch {
+    return false;
+  }
+}
 // Per-phase durations, persisted so the run-step report can show planning +
 // generating times captured during the (separate) generate step. Survives a
 // page refresh between the two steps.
@@ -63,6 +77,8 @@ export type PipelineMode = "generate" | "run";
 // server process / .env). Keeps the browser from injecting arbitrary env.
 export const ALLOWED_CONFIG_KEYS = [
   "BASE_URL",
+  "APP_REPO_URL",
+  "APP_REPO_BRANCH",
   "APP_SOURCE_DIR",
   "APP_MODULES_DIR",
   "APP_PACKAGE_JSON",
@@ -275,6 +291,11 @@ export async function runFullPipeline(
         const id = "TC" + m[1];
         if (/✘|✗|✕|×/.test(line)) emit({ type: "tc-status", id, status: "failed" });
         else if (/✓/.test(line)) emit({ type: "tc-status", id, status: "passed" });
+        // Skipped tests print as the list-reporter result line `  -  <n> [chromium] › …`.
+        // Anchor on that leading "- <number>" marker so failure-detail blocks
+        // (which repeat the "TCxxx - title") can't be misread as skips. The final
+        // report reconciliation is authoritative either way.
+        else if (/^\s*-\s+\d+\s/.test(line)) emit({ type: "tc-status", id, status: "skipped" });
       }
     }
 
@@ -314,8 +335,11 @@ export async function runFullPipeline(
   agent.stderr?.on("data", makeLineHandler(handleAgentLine));
 
   // ── spawn the self-healing executor (run mode only; concurrent background) ─
+  // Only when an app-relevant healable suite exists — otherwise we'd run the
+  // bundled demo, which is unrelated to the app. With none, the healer card
+  // stays hidden (no healing reports → empty healer-report → UI hides it).
   let healer: ChildProcess | null = null;
-  if (isRun) {
+  if (isRun && hasRelevantHealerSuites()) {
     healer = spawn("pnpm", ["--filter", "@qa/healer", "run", "heal:ui"], spawnOpts);
     const healerOut = makeLineHandler((raw) => {
       const line = stripAnsi(raw);
@@ -323,6 +347,8 @@ export async function runFullPipeline(
     });
     healer.stdout?.on("data", healerOut);
     healer.stderr?.on("data", healerOut);
+  } else if (isRun) {
+    emit({ type: "log", source: "healer", line: "No app-specific healable suites — skipping self-healing executor." });
   }
 
   // ── process-tree controls (pause/resume/stop) ─────────────────────────────

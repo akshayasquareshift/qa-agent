@@ -201,10 +201,13 @@ cp .env.example .env
 
 | Variable | Required | Description |
 | -------- | :------: | ----------- |
-| `BASE_URL` | ✓ | URL of the running app, e.g. `http://localhost:3000`. |
-| `APP_SOURCE_DIR` | ✓ | Absolute path to the app's router/pages dir (Next.js: `src/app` or `pages`). |
-| `APP_MODULES_DIR` | ✓ | Absolute path to the components dir — **scanned for `data-testid`s and button/link labels**. Point this where your components actually live (e.g. `src/modules` or `src/components`). |
+| `BASE_URL` | ✓ | URL of the running app — **local or cloud-hosted** (any `http`/`https` URL). |
+| `APP_REPO_URL` | | GitHub URL of the app's source. **Set this to test an app whose code is on GitHub** — the agent shallow-clones it for you (no manual clone). Requires `git` on PATH. |
+| `APP_REPO_BRANCH` | | Branch to fetch (default: the repo's default branch). |
+| `APP_SOURCE_DIR` | ✓ | App's router/pages dir. **Absolute local path**, or — when `APP_REPO_URL` is set — a path **relative to the repo root** (e.g. `src/app`). |
+| `APP_MODULES_DIR` | ✓ | Components dir — **scanned for `data-testid`s and button/link labels**. Absolute local path, or repo-relative when `APP_REPO_URL` is set (e.g. `src/modules` / `src/components`). |
 | `APP_PACKAGE_JSON` | | App's `package.json` for framework detection (auto-detected if omitted). |
+| `GITHUB_TOKEN` | | Only for **private** GitHub repos — injected into the clone URL. |
 | `TEST_USERNAME` / `TEST_PASSWORD` | | Test-account creds. If your app has a register route, auth bootstrap creates a fresh user and overwrites these. |
 | `FORCE_REGISTER` | | `true` → register a fresh user on every run. |
 | `COUNTRY_CODE` | | Locale/URL prefix (e.g. `us`, `dk`). Leave empty if your app has no locale segment. |
@@ -218,6 +221,46 @@ cp .env.example .env
 
 > **Auth is `claude login`, not an API key.** (An older note in `README.md` mentioning
 > `ANTHROPIC_API_KEY` is out of date — ignore it.)
+
+### Testing a cloud-hosted app whose source is on GitHub
+
+The agent needs two things about the app: its **running URL** and its **source code** (to
+discover routes, selectors, and button labels). Neither has to be local:
+
+- **Running URL → just set `BASE_URL`** to the cloud URL (e.g. `https://app.example.com`).
+  Any `http`/`https` URL works — no code change.
+- **Source on GitHub → set `APP_REPO_URL`** and the agent **shallow-clones the repo for you**
+  into a temp dir (you never run `git clone`). In this mode, `APP_SOURCE_DIR` and
+  `APP_MODULES_DIR` are read **relative to the repo root**.
+
+> Note: a GitHub URL in `APP_SOURCE_DIR` alone does **not** work — the agent reads source from
+> a real path. `APP_REPO_URL` is what tells it to fetch the repo first.
+
+Example `.env` for a **public** repo + cloud app:
+
+```bash
+BASE_URL=https://your-app.example.com          # the running cloud app
+APP_REPO_URL=https://github.com/your-org/your-app
+APP_REPO_BRANCH=main                           # optional
+APP_SOURCE_DIR=src/app                          # repo-relative (not absolute)
+APP_MODULES_DIR=src/modules                     # repo-relative
+COUNTRY_CODE=                                   # set if your app has a locale prefix
+```
+
+Then run exactly as normal (`pnpm author` or `pnpm generate`). In the **Web UI**, the Full
+Suite tab has **GitHub repo URL** + **Branch** fields — fill those and set the two dir fields
+to repo-relative paths.
+
+Notes & caveats:
+- **`git` must be on PATH** (used for the shallow clone). Private repos: set `GITHUB_TOKEN`.
+- **Use a dedicated test environment.** The agent may register a test user and seed records
+  against `BASE_URL` (auth + seed bootstrap). Don't point it at production/shared data.
+- **Public app + its own login** needs nothing extra. If the cloud app sits behind HTTP basic
+  auth, a preview-deploy password, or SSO, that isn't handled yet (would need injected
+  credentials/headers).
+- Remote latency: if a remote app is slow, tests may need longer timeouts than the local
+  defaults (60s/test). Raise `MAX_FIX_ROUNDS` won't help latency — re-run or adjust the
+  Playwright timeout if you see timeouts.
 
 ---
 
@@ -317,6 +360,17 @@ cat tests/generated/coverage-report.md          # quick text summary
 
 ## 10. How key mechanisms work
 
+- **Pre-flight checks (raise pass rate)** — before generating, the agent runs two guards:
+  1. **Source ↔ app check** — samples discovered routes against `BASE_URL`; if most 404 it warns
+     that `APP_SOURCE_DIR`/`APP_REPO_URL` may not match the running app (the #1 cause of mass
+     failures). Warn-only; disable with `SKIP_RECON_CHECK=true`.
+  2. **Auth smoke test** — generates and runs a single login spec to confirm auth works; a broken
+     login otherwise fails every auth-gated test silently. Warn + continue by default; disable with
+     `SKIP_AUTH_SMOKE=true`, or make it abort the run with `STRICT_AUTH=true`.
+- **Baseline guidelines** — a built-in, app-agnostic set of best practices (modal/drawer scoping,
+  portal/footer submit buttons, edit-affordance-first, no broad selector unions, wait-for-enabled,
+  stable locators, seeded-data-for-lists, verified-login-first) is injected into every spec-gen and
+  fix prompt — independent of the learned `learnings.json`.
 - **Auth bootstrap** — if a register/signup route exists, the agent registers a fresh user,
   writes `TEST_USERNAME`/`TEST_PASSWORD`/`TEST_EMAIL` to `.env`, and every auth-required test
   uses it. Opt out by setting a real `TEST_USERNAME`; force re-registration with `FORCE_REGISTER=true`.

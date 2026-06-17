@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { AppContext, RouteInfo, SelectorInfo, ActionLabel } from "./types";
+import { resolveAppSource } from "./app-source";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Path configuration — driven by environment variables so this module works
@@ -30,10 +31,6 @@ function requireEnv(name: string): string {
   }
   return val;
 }
-
-const APP_PATH = requireEnv("APP_SOURCE_DIR");
-const MODULES_PATH = requireEnv("APP_MODULES_DIR");
-const APP_PACKAGE_JSON = process.env.APP_PACKAGE_JSON ?? autoDetectPackageJson(APP_PATH);
 
 function autoDetectPackageJson(appSourceDir: string): string {
   // Walk up from APP_SOURCE_DIR looking for the nearest package.json
@@ -247,6 +244,15 @@ function detectRenderingModel(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function readCodebaseContext(): AppContext {
+  // If APP_REPO_URL is set, fetch the repo and rewrite APP_SOURCE_DIR /
+  // APP_MODULES_DIR to point inside the clone (no-op for local paths). Must run
+  // before we read those env vars below.
+  resolveAppSource();
+
+  const APP_PATH = requireEnv("APP_SOURCE_DIR");
+  const MODULES_PATH = requireEnv("APP_MODULES_DIR");
+  const APP_PACKAGE_JSON = process.env.APP_PACKAGE_JSON ?? autoDetectPackageJson(APP_PATH);
+
   const countryCode = process.env.COUNTRY_CODE ?? "";
   const framework = detectFramework(APP_PACKAGE_JSON, APP_PATH);
   const renderingModel = detectRenderingModel(MODULES_PATH, framework);

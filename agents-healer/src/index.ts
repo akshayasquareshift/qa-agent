@@ -32,7 +32,9 @@ function discoverSuites(): string[] {
   if (!fs.existsSync(SUITES_DIR)) return [];
   return fs
     .readdirSync(SUITES_DIR)
-    .filter((f) => f.endsWith(".suite.ts") || f.endsWith(".suite.json"))
+    // Exclude the bundled demo from auto-discovery — it's a generic showcase, not
+    // app-relevant data. It's still runnable explicitly via `heal:demo`.
+    .filter((f) => (f.endsWith(".suite.ts") || f.endsWith(".suite.json")) && f !== "demo.suite.ts")
     .map((f) => path.join(SUITES_DIR, f));
 }
 
