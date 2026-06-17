@@ -1,5 +1,8 @@
 # Autonomous QA Agent
 
+> 📖 **New here?** See the **[Agentic QA Guide](AGENTIC_QA_GUIDE.md)** — a single shareable doc
+> covering the architecture, flow, use cases, setup, and how to run/test (Web UI + CLI).
+
 An AI-powered Playwright test generation, execution, and self-healing pipeline. Point it at any web application and it will:
 
 **Core objective:** the agent aims for **maximum coverage** of the target application — every route, every entity's CRUD operations, happy paths *and* realistic failure modes, permission boundaries, form validation, navigation, search/filter/sort, and responsive layouts where applicable. It does not stop at a minimum quota.
