@@ -1,0 +1,1018 @@
+{
+  "testCases": [
+    {
+      "id": "TC001",
+      "title": "Load homepage successfully",
+      "pageUrl": "http://localhost:8000/dk",
+      "priority": "high",
+      "category": "navigation",
+      "dependsOn": [],
+      "rationale": "Homepage must load for any user journey",
+      "stateSetup": [
+        "Server running"
+      ],
+      "steps": [
+        "Navigate to /dk",
+        "Wait for load",
+        "Verify status 200"
+      ],
+      "expectedOutcome": "Homepage renders without errors",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC002",
+      "title": "Load store listing page",
+      "pageUrl": "http://localhost:8000/dk/store",
+      "priority": "high",
+      "category": "catalog",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Store is core product discovery page",
+      "stateSetup": [],
+      "steps": [
+        "Navigate to /dk/store",
+        "Wait for products",
+        "Verify product list visible"
+      ],
+      "expectedOutcome": "Store page renders product list",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC003",
+      "title": "Load product detail page",
+      "pageUrl": "http://localhost:8000/dk/products/item",
+      "priority": "high",
+      "category": "catalog",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Product detail drives purchase decisions",
+      "stateSetup": [],
+      "steps": [
+        "Navigate to product URL",
+        "Verify title and price",
+        "Verify add-to-cart visible"
+      ],
+      "expectedOutcome": "Product page renders details",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC004",
+      "title": "Load category page",
+      "pageUrl": "http://localhost:8000/dk/categories/category",
+      "priority": "high",
+      "category": "catalog",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Categories enable product browsing",
+      "stateSetup": [],
+      "steps": [
+        "Navigate to category URL",
+        "Verify products listed",
+        "Verify category title"
+      ],
+      "expectedOutcome": "Category page lists products",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC005",
+      "title": "Load collection page",
+      "pageUrl": "http://localhost:8000/dk/collections/item",
+      "priority": "medium",
+      "category": "catalog",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Collections group curated products",
+      "stateSetup": [],
+      "steps": [
+        "Navigate to collection URL",
+        "Verify products visible",
+        "Verify collection name"
+      ],
+      "expectedOutcome": "Collection page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC006",
+      "title": "Load empty cart page",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Cart must load even when empty",
+      "stateSetup": [
+        "No items added"
+      ],
+      "steps": [
+        "Navigate to /dk/cart",
+        "Verify empty state message"
+      ],
+      "expectedOutcome": "Empty cart state displays",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC007",
+      "title": "Add product to cart from PDP",
+      "pageUrl": "http://localhost:8000/dk/products/item",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC003"
+      ],
+      "rationale": "Core add-to-cart conversion path",
+      "stateSetup": [],
+      "steps": [
+        "Open product",
+        "Select variant",
+        "Click add to cart",
+        "Verify cart updated"
+      ],
+      "expectedOutcome": "Item appears in cart",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC008",
+      "title": "View cart with items",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC007"
+      ],
+      "rationale": "Cart must display added items",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Navigate to cart",
+        "Verify line item",
+        "Verify totals"
+      ],
+      "expectedOutcome": "Cart shows item and totals",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC009",
+      "title": "Update cart item quantity",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Quantity updates affect totals",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Open cart",
+        "Change quantity",
+        "Verify subtotal updates"
+      ],
+      "expectedOutcome": "Totals recalculate",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC010",
+      "title": "Remove item from cart",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "cart",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Users must remove unwanted items",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Open cart",
+        "Click remove",
+        "Verify item gone"
+      ],
+      "expectedOutcome": "Item removed from cart",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC011",
+      "title": "Load account login page",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Login gates account features",
+      "stateSetup": [
+        "Logged out"
+      ],
+      "steps": [
+        "Navigate to /dk/account",
+        "Verify login form visible"
+      ],
+      "expectedOutcome": "Login page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC012",
+      "title": "Login with invalid credentials fails",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Invalid auth must be rejected",
+      "stateSetup": [],
+      "steps": [
+        "Enter bad email/password",
+        "Submit",
+        "Verify error message"
+      ],
+      "expectedOutcome": "Error shown, no session",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC013",
+      "title": "Login with empty fields shows validation",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Required field validation",
+      "stateSetup": [],
+      "steps": [
+        "Submit empty form",
+        "Verify validation errors"
+      ],
+      "expectedOutcome": "Required field errors shown",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC014",
+      "title": "Register new account",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Registration enables checkout",
+      "stateSetup": [
+        "Unique email"
+      ],
+      "steps": [
+        "Open register",
+        "Fill fields",
+        "Submit",
+        "Verify logged in"
+      ],
+      "expectedOutcome": "Account created and logged in",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC015",
+      "title": "Login with valid credentials",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC014"
+      ],
+      "rationale": "Valid login is core flow",
+      "stateSetup": [
+        "Existing account"
+      ],
+      "steps": [
+        "Enter credentials",
+        "Submit",
+        "Verify dashboard"
+      ],
+      "expectedOutcome": "User authenticated",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC016",
+      "title": "View account dashboard",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "high",
+      "category": "account",
+      "dependsOn": [
+        "TC015"
+      ],
+      "rationale": "Dashboard hub for account",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate to account",
+        "Verify dashboard sections"
+      ],
+      "expectedOutcome": "Dashboard renders",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC017",
+      "title": "View account profile",
+      "pageUrl": "http://localhost:8000/dk/account/profile",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC016"
+      ],
+      "rationale": "Profile management",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate profile",
+        "Verify fields populated"
+      ],
+      "expectedOutcome": "Profile data visible",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC018",
+      "title": "Update profile information",
+      "pageUrl": "http://localhost:8000/dk/account/profile",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC017"
+      ],
+      "rationale": "Users edit profile data",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Edit name field",
+        "Save",
+        "Verify success"
+      ],
+      "expectedOutcome": "Profile updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC019",
+      "title": "View saved addresses",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC016"
+      ],
+      "rationale": "Addresses speed up checkout",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate addresses",
+        "Verify list visible"
+      ],
+      "expectedOutcome": "Addresses page loads",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC020",
+      "title": "Add new shipping address",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC019"
+      ],
+      "rationale": "Address CRUD - create",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Click add address",
+        "Fill form",
+        "Save",
+        "Verify in list"
+      ],
+      "expectedOutcome": "Address saved",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC021",
+      "title": "Edit existing address",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC020"
+      ],
+      "rationale": "Address CRUD - update",
+      "stateSetup": [
+        "Address exists"
+      ],
+      "steps": [
+        "Click edit",
+        "Modify fields",
+        "Save",
+        "Verify changes"
+      ],
+      "expectedOutcome": "Address updated",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC022",
+      "title": "Delete address",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "account",
+      "dependsOn": [
+        "TC020"
+      ],
+      "rationale": "Address CRUD - delete",
+      "stateSetup": [
+        "Address exists"
+      ],
+      "steps": [
+        "Click delete",
+        "Confirm",
+        "Verify removed"
+      ],
+      "expectedOutcome": "Address removed",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC023",
+      "title": "Address form required field validation",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "low",
+      "category": "validation",
+      "dependsOn": [
+        "TC019"
+      ],
+      "rationale": "Form validation prevents bad data",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Open add address",
+        "Submit empty",
+        "Verify errors"
+      ],
+      "expectedOutcome": "Required field errors",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC024",
+      "title": "View order history",
+      "pageUrl": "http://localhost:8000/dk/account/orders",
+      "priority": "high",
+      "category": "orders",
+      "dependsOn": [
+        "TC016"
+      ],
+      "rationale": "Order history is key account feature",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Navigate orders",
+        "Verify list or empty state"
+      ],
+      "expectedOutcome": "Orders page loads",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC025",
+      "title": "View order detail",
+      "pageUrl": "http://localhost:8000/dk/account/orders/details/order_123",
+      "priority": "medium",
+      "category": "orders",
+      "dependsOn": [
+        "TC024"
+      ],
+      "rationale": "Order details show line items",
+      "stateSetup": [
+        "Order exists"
+      ],
+      "steps": [
+        "Open order",
+        "Verify items and status"
+      ],
+      "expectedOutcome": "Order details render",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC026",
+      "title": "Navigate to checkout from cart",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Cart to checkout transition",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Open cart",
+        "Click checkout",
+        "Verify checkout URL"
+      ],
+      "expectedOutcome": "Lands on checkout",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC027",
+      "title": "Load checkout page",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC026"
+      ],
+      "rationale": "Checkout must render",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Navigate checkout",
+        "Verify form sections"
+      ],
+      "expectedOutcome": "Checkout form loads",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC028",
+      "title": "Checkout shipping address entry",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC027"
+      ],
+      "rationale": "Shipping required for order",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Fill shipping address",
+        "Continue",
+        "Verify next step"
+      ],
+      "expectedOutcome": "Address accepted",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC029",
+      "title": "Checkout shipping method selection",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "high",
+      "category": "checkout",
+      "dependsOn": [
+        "TC028"
+      ],
+      "rationale": "Shipping method affects totals",
+      "stateSetup": [
+        "Address filled"
+      ],
+      "steps": [
+        "Select shipping method",
+        "Verify total updates"
+      ],
+      "expectedOutcome": "Method selected",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC030",
+      "title": "Checkout validation errors on empty form",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "medium",
+      "category": "validation",
+      "dependsOn": [
+        "TC027"
+      ],
+      "rationale": "Prevents incomplete orders",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Submit empty step",
+        "Verify errors"
+      ],
+      "expectedOutcome": "Validation errors shown",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC031",
+      "title": "Empty cart blocks checkout",
+      "pageUrl": "http://localhost:8000/dk/checkout",
+      "priority": "medium",
+      "category": "checkout",
+      "dependsOn": [
+        "TC006"
+      ],
+      "rationale": "Cannot checkout empty cart",
+      "stateSetup": [
+        "Empty cart"
+      ],
+      "steps": [
+        "Navigate checkout with empty cart",
+        "Verify redirect or message"
+      ],
+      "expectedOutcome": "Blocked or redirected",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC032",
+      "title": "Order confirmed page renders",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/confirmed",
+      "priority": "medium",
+      "category": "orders",
+      "dependsOn": [
+        "TC027"
+      ],
+      "rationale": "Post-purchase confirmation",
+      "stateSetup": [
+        "Completed order"
+      ],
+      "steps": [
+        "Navigate confirmation URL",
+        "Verify order summary"
+      ],
+      "expectedOutcome": "Confirmation displays",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC033",
+      "title": "Order transfer accept page loads",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/transfer/token_abc/accept",
+      "priority": "low",
+      "category": "orders",
+      "dependsOn": [
+        "TC032"
+      ],
+      "rationale": "Order transfer accept flow",
+      "stateSetup": [
+        "Valid token"
+      ],
+      "steps": [
+        "Navigate accept URL",
+        "Verify confirmation UI"
+      ],
+      "expectedOutcome": "Accept page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC034",
+      "title": "Order transfer decline page loads",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/transfer/token_abc/decline",
+      "priority": "low",
+      "category": "orders",
+      "dependsOn": [
+        "TC032"
+      ],
+      "rationale": "Order transfer decline flow",
+      "stateSetup": [
+        "Valid token"
+      ],
+      "steps": [
+        "Navigate decline URL",
+        "Verify decline UI"
+      ],
+      "expectedOutcome": "Decline page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC035",
+      "title": "Order transfer page loads",
+      "pageUrl": "http://localhost:8000/dk/order/order_123/transfer/token_abc",
+      "priority": "low",
+      "category": "orders",
+      "dependsOn": [
+        "TC032"
+      ],
+      "rationale": "Transfer landing page",
+      "stateSetup": [
+        "Valid token"
+      ],
+      "steps": [
+        "Navigate transfer URL",
+        "Verify content"
+      ],
+      "expectedOutcome": "Transfer page renders",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC036",
+      "title": "Logged-out user redirected from account",
+      "pageUrl": "http://localhost:8000/dk/account/profile",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Protected routes must enforce auth",
+      "stateSetup": [
+        "Logged out"
+      ],
+      "steps": [
+        "Navigate profile",
+        "Verify redirect to login"
+      ],
+      "expectedOutcome": "Redirected to login",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC037",
+      "title": "Logged-out blocked from orders",
+      "pageUrl": "http://localhost:8000/dk/account/orders",
+      "priority": "high",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Order history is private",
+      "stateSetup": [
+        "Logged out"
+      ],
+      "steps": [
+        "Navigate orders",
+        "Verify redirect"
+      ],
+      "expectedOutcome": "Redirected to login",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC038",
+      "title": "Logged-out blocked from addresses",
+      "pageUrl": "http://localhost:8000/dk/account/addresses",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC011"
+      ],
+      "rationale": "Addresses are private",
+      "stateSetup": [
+        "Logged out"
+      ],
+      "steps": [
+        "Navigate addresses",
+        "Verify redirect"
+      ],
+      "expectedOutcome": "Redirected to login",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC039",
+      "title": "Logout from account",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC015"
+      ],
+      "rationale": "Users must be able to logout",
+      "stateSetup": [
+        "Logged in"
+      ],
+      "steps": [
+        "Click logout",
+        "Verify session ended"
+      ],
+      "expectedOutcome": "Logged out",
+      "selectorsToUse": [],
+      "requiresAuth": true
+    },
+    {
+      "id": "TC040",
+      "title": "Navigate store to product detail",
+      "pageUrl": "http://localhost:8000/dk/store",
+      "priority": "medium",
+      "category": "navigation",
+      "dependsOn": [
+        "TC002"
+      ],
+      "rationale": "Product discovery navigation",
+      "stateSetup": [],
+      "steps": [
+        "Open store",
+        "Click product card",
+        "Verify PDP loads"
+      ],
+      "expectedOutcome": "Lands on product page",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC041",
+      "title": "Navigate category to product",
+      "pageUrl": "http://localhost:8000/dk/categories/category",
+      "priority": "low",
+      "category": "navigation",
+      "dependsOn": [
+        "TC004"
+      ],
+      "rationale": "Category browsing flow",
+      "stateSetup": [],
+      "steps": [
+        "Open category",
+        "Click product",
+        "Verify PDP"
+      ],
+      "expectedOutcome": "PDP loads",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC042",
+      "title": "Product variant selection",
+      "pageUrl": "http://localhost:8000/dk/products/item",
+      "priority": "medium",
+      "category": "catalog",
+      "dependsOn": [
+        "TC003"
+      ],
+      "rationale": "Variants change price/stock",
+      "stateSetup": [],
+      "steps": [
+        "Open product",
+        "Select variant",
+        "Verify UI updates"
+      ],
+      "expectedOutcome": "Variant selected",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC043",
+      "title": "404 on invalid product handle",
+      "pageUrl": "http://localhost:8000/dk/products/nonexistent-xyz",
+      "priority": "low",
+      "category": "error",
+      "dependsOn": [
+        "TC003"
+      ],
+      "rationale": "Invalid handles must 404",
+      "stateSetup": [],
+      "steps": [
+        "Navigate bad URL",
+        "Verify 404 page"
+      ],
+      "expectedOutcome": "404 shown",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC044",
+      "title": "404 on invalid category",
+      "pageUrl": "http://localhost:8000/dk/categories/nonexistent",
+      "priority": "low",
+      "category": "error",
+      "dependsOn": [
+        "TC004"
+      ],
+      "rationale": "Invalid categories 404",
+      "stateSetup": [],
+      "steps": [
+        "Navigate bad URL",
+        "Verify 404"
+      ],
+      "expectedOutcome": "404 shown",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC045",
+      "title": "Cart persists across page reload",
+      "pageUrl": "http://localhost:8000/dk/cart",
+      "priority": "medium",
+      "category": "cart",
+      "dependsOn": [
+        "TC008"
+      ],
+      "rationale": "Cart should persist via session",
+      "stateSetup": [
+        "Item in cart"
+      ],
+      "steps": [
+        "Add item",
+        "Reload",
+        "Verify cart unchanged"
+      ],
+      "expectedOutcome": "Cart persists",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC046",
+      "title": "Register with existing email fails",
+      "pageUrl": "http://localhost:8000/dk/account",
+      "priority": "medium",
+      "category": "auth",
+      "dependsOn": [
+        "TC014"
+      ],
+      "rationale": "Duplicate emails rejected",
+      "stateSetup": [
+        "Account exists"
+      ],
+      "steps": [
+        "Register same email",
+        "Verify error"
+      ],
+      "expectedOutcome": "Duplicate error shown",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    },
+    {
+      "id": "TC047",
+      "title": "Homepage navigation links work",
+      "pageUrl": "http://localhost:8000/dk",
+      "priority": "low",
+      "category": "navigation",
+      "dependsOn": [
+        "TC001"
+      ],
+      "rationale": "Header nav must work",
+      "stateSetup": [],
+      "steps": [
+        "Click nav links",
+        "Verify navigation"
+      ],
+      "expectedOutcome": "Links navigate correctly",
+      "selectorsToUse": [],
+      "requiresAuth": false
+    }
+  ],
+  "skippedFlows": [
+    {
+      "flow": "Payment processing",
+      "reason": "Requires external payment processor credentials",
+      "enabledBy": "Test payment gateway sandbox keys"
+    },
+    {
+      "flow": "Email verification",
+      "reason": "Requires inbox access for verification links",
+      "enabledBy": "Test inbox API (Mailtrap)"
+    },
+    {
+      "flow": "Password reset via email",
+      "reason": "Email-link flow needs inbox access",
+      "enabledBy": "Test email inbox integration"
+    },
+    {
+      "flow": "OAuth social login",
+      "reason": "Requires third-party OAuth provider credentials",
+      "enabledBy": "Test OAuth provider accounts"
+    },
+    {
+      "flow": "Webhook order events",
+      "reason": "Server-side flow with no browser surface",
+      "enabledBy": "Direct backend integration tests"
+    }
+  ],
+  "generatedAt": "2026-06-02T09:37:27.395Z"
+}

@@ -13,12 +13,23 @@ export interface SelectorInfo {
   context: string; // module / component that owns this selector
 }
 
+// A clickable element's real visible label, paired with any data-testid on the
+// same element. Lets the generator target buttons/links by their ACTUAL text
+// (or testid) instead of guessing — critical for testid-less CTAs.
+export interface ActionLabel {
+  label: string;       // visible text, e.g. "Add item", "Go to checkout"
+  testId?: string;     // data-testid on the same element, if present
+  element: string;     // tag kind: "button" | "link"
+  context: string;     // module / component that owns this element
+}
+
 export interface AppContext {
   framework: "nextjs-app-router" | "nextjs-pages" | "spa" | "unknown";
   renderingModel: "ssr-streaming" | "ssr-static" | "csr" | "unknown";
   routes: RouteInfo[];
   selectors: SelectorInfo[];
-  productHandles: string[]; // or generic "item slugs" for non-commerce apps
+  actionLabels: ActionLabel[]; // real button/link labels paired with their testids
+  seedData: string[]; // test records / seed slugs — domain-agnostic (set via SEED_DATA env var)
   baseUrl: string;
   countryCode: string; // locale prefix — empty string for non-locale apps
 }
@@ -27,18 +38,7 @@ export interface AppContext {
 // Flow graph — identified in Phase 2 before test cases are written
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type FlowCategory =
-  | "auth"
-  | "navigation"
-  | "product"
-  | "cart"
-  | "checkout"
-  | "account"
-  | "order"
-  | "search"
-  | "categories"
-  | "store"
-  | string; // allow arbitrary categories for non-commerce apps
+export type FlowCategory = string; // inferred from the app's domain by the planner
 
 export interface AppFlow {
   id: string;           // e.g. "flow-auth-register"
@@ -105,9 +105,10 @@ export type FailureClass =
   | "SELECTOR_STALE"  // testid changed or never existed in source
   | "STRICT_MODE"     // locator resolves to > 1 element
   | "TIMING"          // element not visible within timeout (SSR race, slow load)
-  | "STATE"           // wrong preconditions (e.g. cart empty when checkout expected)
+  | "STATE"           // wrong preconditions (e.g. missing auth, required data not set up)
   | "URL_WRONG"       // page not found, wrong step param, soft-nav required
   | "SOURCE_BUG"      // application code is missing attr or broken
+  | "UI_CHANGE"       // app UI changed deliberately (text rename, markup shift) — spec adapted but worth surfacing
   | "FLAKY"           // passes alone, fails under parallel load
   | "UNKNOWN";
 
@@ -165,6 +166,30 @@ export interface BugReport {
   impactedTests: string[];  // TC IDs that failed because of this bug
   suggestedFix: string;     // developer action required — NOT applied by the agent
   rootCause: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Seed state — entity markers + creds the seeder phase wrote to disk, so
+// downstream specs (and the fixer) can reference seeded data instead of
+// skipping for "no seed data" / "session not persisted" preconditions.
+// File: tests/.qa-seed-state.json
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SeedEntity {
+  entityName: string;     // e.g. "patient", "appointment", "order"
+  routePattern: string;   // e.g. "/patients/new"
+  marker: string;         // unique identifier baked into the create form, e.g. "QA_Patient_1748284800"
+  description: string;    // how a test should find this entity (e.g. "Search /patients list by exact name match")
+}
+
+export interface SeedState {
+  generatedAt: string;
+  credentials: {
+    username: string;
+    password: string;
+    email?: string;
+  } | null;
+  entities: SeedEntity[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

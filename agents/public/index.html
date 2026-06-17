@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QA Agent · Natural-Language Test Authoring</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1c2230;
+    --border: #2a3343;
+    --text: #e6edf3;
+    --muted: #8b98a9;
+    --accent: #6ea8fe;
+    --accent-2: #7c5cff;
+    --green: #3fb950;
+    --red: #f85149;
+    --amber: #d29922;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: linear-gradient(180deg, #11161f, #0e1116);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  header h1 .spark { color: var(--accent-2); }
+  header .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .ctx { text-align: right; font-size: 12px; color: var(--muted); }
+  .ctx b { color: var(--text); font-weight: 600; }
+  .ctx .pill {
+    display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 9px; margin-left: 6px; color: var(--text); font-size: 11px;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 26px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px; margin-bottom: 22px;
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+
+  textarea {
+    width: 100%; min-height: 110px; resize: vertical; background: var(--bg);
+    color: var(--text); border: 1px solid var(--border); border-radius: 9px;
+    padding: 13px 14px; font-size: 15px; font-family: inherit; line-height: 1.55;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(110,168,254,0.15); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  .chip {
+    font-size: 12.5px; color: var(--muted); background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer;
+    transition: 0.12s;
+  }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    font-size: 14px; font-weight: 600; border-radius: 9px; padding: 10px 18px; cursor: pointer;
+    border: 1px solid transparent; transition: 0.12s; font-family: inherit;
+  }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #06101f; }
+  .btn-primary:hover:not(:disabled) { background: #87b6ff; }
+  .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--accent); }
+  .btn-run { background: var(--green); color: #04140a; }
+  .btn-run:hover:not(:disabled) { background: #56cc66; }
+
+  .adapt-note {
+    font-size: 12.5px; color: var(--accent-2); background: rgba(124,92,255,0.1);
+    border: 1px solid rgba(124,92,255,0.35); border-radius: 7px; padding: 7px 11px; margin-top: 12px;
+    display: none;
+  }
+  .adapt-note.show { display: block; }
+
+  .heal-toggle { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+  .heal-toggle input { margin-top: 2px; accent-color: var(--accent-2); cursor: pointer; }
+  .heal-toggle:hover span { color: var(--text); }
+
+  pre.code {
+    margin: 0; background: #0a0d12; border: 1px solid var(--border); border-radius: 9px;
+    padding: 14px 16px; overflow: auto; max-height: 460px; font-family: var(--mono);
+    font-size: 12.5px; line-height: 1.6; color: #d7e0ea; white-space: pre;
+  }
+  .empty { color: var(--muted); font-size: 13.5px; padding: 22px 6px; text-align: center; }
+
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .card-head h2 { margin: 0; }
+  .code-actions { display: flex; gap: 8px; }
+  .code-actions button { padding: 5px 12px; font-size: 12.5px; }
+  textarea.code-edit {
+    width: 100%; min-height: 320px; max-height: 480px; background: #0a0d12; color: #d7e0ea;
+    border: 1px solid var(--accent); border-radius: 9px; padding: 14px 16px; font-family: var(--mono);
+    font-size: 12.5px; line-height: 1.6; resize: vertical; white-space: pre; overflow: auto;
+  }
+  textarea.code-edit:focus { outline: none; box-shadow: 0 0 0 3px rgba(110,168,254,0.15); }
+
+  .status-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; min-height: 26px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13px;
+    padding: 4px 12px; border-radius: 999px;
+  }
+  .badge.passed { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.4); }
+  .badge.failed { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+  .badge.running { background: rgba(110,168,254,0.15); color: var(--accent); border: 1px solid rgba(110,168,254,0.4); }
+  .badge.healing { background: rgba(124,92,255,0.15); color: var(--accent-2); border: 1px solid rgba(124,92,255,0.4); }
+  .heal-log { margin: 10px 0; padding: 0; list-style: none; }
+  .heal-log li { font-size: 12.5px; color: var(--accent-2); padding: 4px 0; border-left: 2px solid rgba(124,92,255,0.4); padding-left: 10px; margin-bottom: 4px; }
+  .heal-log li .rc { color: var(--muted); }
+  .badge.skipped, .badge.unknown { background: rgba(210,153,34,0.15); color: var(--amber); border: 1px solid rgba(210,153,34,0.4); }
+  .dur { color: var(--muted); font-size: 12.5px; }
+
+  .spinner {
+    width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .steps { list-style: none; padding: 0; margin: 6px 0 0; }
+  .steps li {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 7px;
+    font-size: 13.5px; border: 1px solid transparent;
+  }
+  .steps li + li { margin-top: 2px; }
+  .steps li .mark { flex: 0 0 auto; width: 18px; text-align: center; font-weight: 700; }
+  .steps li.ok .mark { color: var(--green); }
+  .steps li.fail { background: rgba(248,81,73,0.08); border-color: rgba(248,81,73,0.3); }
+  .steps li.fail .mark { color: var(--red); }
+  .steps li .label { flex: 1; }
+  .steps li .t { color: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+  .steps li .err { color: #ffb4ae; font-size: 12px; font-family: var(--mono); margin-top: 4px; white-space: pre-wrap; }
+
+  details.logs { margin-top: 14px; }
+  details.logs summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  pre.log {
+    margin: 8px 0 0; background: #0a0d12; border: 1px solid var(--border); border-radius: 9px;
+    padding: 12px 14px; max-height: 240px; overflow: auto; font-family: var(--mono);
+    font-size: 11.5px; line-height: 1.55; color: #9fb0c3; white-space: pre-wrap;
+  }
+  .errbox {
+    margin-top: 12px; background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.3);
+    border-radius: 9px; padding: 12px 14px; font-family: var(--mono); font-size: 12px;
+    color: #ffb4ae; white-space: pre-wrap; max-height: 220px; overflow: auto;
+  }
+  .shot { margin-top: 14px; }
+  .shot img { max-width: 100%; border: 1px solid var(--border); border-radius: 9px; }
+  .shot .cap { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 4px; padding: 0 28px; border-bottom: 1px solid var(--border); background: #0e1116; }
+  .tab {
+    background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--muted);
+    font-size: 13.5px; font-weight: 600; padding: 13px 16px; margin-bottom: -1px; border-radius: 0;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Suite tab layout ── */
+  .suite-grid { display: grid; grid-template-columns: 420px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 980px) { .suite-grid { grid-template-columns: 1fr; } }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
+  .hint code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+
+  .form { display: flex; flex-direction: column; gap: 12px; }
+  .form-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .form label.inline { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; }
+  .form input[type="text"], .form input:not([type]), .form input[type="password"], .form input[type="number"] {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 11px; font-size: 13px; font-family: inherit;
+  }
+  .form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(110,168,254,0.15); }
+  .form .req { color: var(--accent); }
+  .form label.iter { font-weight: 600; margin-top: 4px; border-top: 1px solid var(--border); padding-top: 14px; }
+  .form label.iter input { width: 90px; }
+  .form label.iter small { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+
+  /* ── Stepper ── */
+  .stepper { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .stepper .empty-li { color: var(--muted); font-size: 13.5px; padding: 6px 0; }
+  .stp { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; font-size: 13.5px; color: var(--muted); position: relative; }
+  .stp .ico { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--panel); }
+  .stp .body { flex: 1; padding-top: 1px; }
+  .stp .body .ttl { font-weight: 600; }
+  .stp .body .det { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stp.pending .ttl { color: var(--muted); }
+  .stp.active .ico { border-color: var(--accent); color: var(--accent); }
+  .stp.active .ttl { color: var(--text); }
+  .stp.done .ico { border-color: var(--green); background: rgba(63,185,80,0.15); color: var(--green); }
+  .stp.done .ttl { color: var(--text); }
+
+  /* ── Stat counts ── */
+  .counts { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .counts .c { display: inline-block; margin-left: 8px; }
+  .counts .c b { font-weight: 700; }
+  .counts .c.pass b { color: var(--green); }
+  .counts .c.fail b { color: var(--red); }
+  .counts .c.run b { color: var(--accent); }
+
+  /* ── Test-case table ── */
+  .tc-table-wrap { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 9px; }
+  .tc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .tc-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .tc-table tr:last-child td { border-bottom: none; }
+  .tc-table tr.clickable { cursor: pointer; }
+  .tc-table tr.clickable:hover td { background: var(--panel-2); }
+  .tc-table tr.selected td { background: rgba(110,168,254,0.1); }
+  .tc-table .id { font-family: var(--mono); color: var(--muted); width: 56px; white-space: nowrap; }
+  .tc-table .ttl { color: var(--text); }
+  .tc-table .cat { color: var(--muted); font-size: 11px; }
+  .tc-table .st { width: 92px; text-align: right; white-space: nowrap; }
+  .tcbadge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+  .tcbadge.planned { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+  .tcbadge.generated { background: rgba(110,168,254,0.12); color: var(--accent); border: 1px solid rgba(110,168,254,0.35); }
+  .tcbadge.running { background: rgba(124,92,255,0.14); color: var(--accent-2); border: 1px solid rgba(124,92,255,0.4); }
+  .tcbadge.passed { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.4); }
+  .tcbadge.failed, .tcbadge.timedout, .tcbadge.gen-failed { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+  .tcbadge.skipped { background: rgba(210,153,34,0.15); color: var(--amber); border: 1px solid rgba(210,153,34,0.4); }
+
+  /* ── Report ── */
+  .rep-hero { display: flex; gap: 22px; align-items: baseline; flex-wrap: wrap; margin-bottom: 14px; }
+  .rep-hero .rate { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
+  .rep-hero .rate.good { color: var(--green); } .rep-hero .rate.bad { color: var(--red); } .rep-hero .rate.mid { color: var(--amber); }
+  .rep-hero .meta { color: var(--muted); font-size: 13px; }
+  .rep-hero .meta b { color: var(--text); }
+  .rep-cat { margin: 4px 0; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
+  .rep-cat .name { width: 130px; color: var(--text); }
+  .rep-cat .bar { flex: 1; height: 9px; border-radius: 5px; background: var(--panel-2); overflow: hidden; display: flex; }
+  .rep-cat .bar .ok { background: var(--green); height: 100%; }
+  .rep-cat .bar .no { background: var(--red); height: 100%; }
+  .rep-cat .n { width: 54px; text-align: right; color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+  .rep-bugs { margin-top: 16px; }
+  .rep-bug { background: rgba(248,81,73,0.07); border: 1px solid rgba(248,81,73,0.3); border-radius: 8px; padding: 10px 12px; margin-top: 8px; font-size: 12.5px; }
+  .rep-bug .bt { font-weight: 700; color: #ffb4ae; }
+  .rep-bug .bf { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .rep-links { font-size: 12.5px; color: var(--muted); }
+  .rep-timing { margin-top: 16px; }
+  .rep-time { display: flex; justify-content: space-between; font-size: 12.5px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .rep-time .name { color: var(--text); }
+  .rep-time .val { font-family: var(--mono); color: var(--muted); }
+  .rep-time.total { border-bottom: none; margin-top: 2px; font-weight: 700; }
+  .rep-time.total .val { color: var(--text); }
+  .rep-actions { margin-top: 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .heal-stat { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; }
+  .heal-stat .hs b { font-weight: 700; }
+  .heal-stat .hs.healed b { color: var(--accent-2); }
+  .heal-event { font-size: 12px; border-left: 2px solid rgba(124,92,255,0.4); padding: 4px 0 4px 10px; margin-top: 8px; color: var(--muted); }
+  .heal-event .diff-old { color: #ffb4ae; font-family: var(--mono); }
+  .heal-event .diff-new { color: #7ee787; font-family: var(--mono); }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1><span class="spark">✦</span> Natural-Language Test Authoring</h1>
+    <div class="sub">Describe a test in plain English — the agent writes Playwright code, runs it, and reports the result.</div>
+  </div>
+  <div class="ctx" id="ctx">Loading app context…</div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="authoring">✦&nbsp; Plain-English Authoring</button>
+  <button class="tab" data-tab="suite">⚙&nbsp; Full Suite Generation</button>
+</nav>
+
+<main>
+  <div id="tab-authoring" class="tab-panel active">
+  <div class="grid">
+    <!-- ─── Left: authoring ─── -->
+    <section>
+      <div class="card">
+        <h2 id="authorHeading">What do you want to test?</h2>
+        <textarea id="instruction" placeholder="e.g. Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout."></textarea>
+        <div class="chips" id="chips"></div>
+        <div class="adapt-note" id="adaptNote">↻ Adapting your existing test — describe the change (e.g. “now apply a coupon code”).</div>
+        <div class="row">
+          <button class="btn-primary" id="genBtn">Generate test</button>
+          <button class="btn-run" id="runBtn" disabled>▶ Run test</button>
+          <button class="btn-ghost" id="resetBtn" style="display:none">Start over</button>
+        </div>
+        <label class="heal-toggle" id="healToggle">
+          <input type="checkbox" id="autoHeal" checked />
+          <span>Auto-heal on failure — if the test fails, the agent fixes the code and re-runs (up to 3×)</span>
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>Test result</h2>
+        <div class="status-bar" id="statusBar"><span class="empty" style="padding:0">Run a test to see the result.</span></div>
+        <ul class="heal-log" id="healLog"></ul>
+        <ul class="steps" id="steps"></ul>
+        <div id="errbox"></div>
+        <div id="shot"></div>
+        <details class="logs" id="logsWrap" style="display:none">
+          <summary>Playwright output</summary>
+          <pre class="log" id="log"></pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- ─── Right: generated code ─── -->
+    <section>
+      <div class="card">
+        <div class="card-head">
+          <h2>Generated Playwright code</h2>
+          <div class="code-actions" id="authorCodeActions" style="display:none">
+            <button class="btn-ghost" id="editCodeBtn">✎ Edit</button>
+            <button class="btn-primary" id="saveCodeBtn" style="display:none">Save</button>
+            <button class="btn-ghost" id="cancelCodeBtn" style="display:none">Cancel</button>
+          </div>
+        </div>
+        <div id="codeWrap"><div class="empty">Your generated test will appear here.</div></div>
+      </div>
+    </section>
+  </div>
+  </div><!-- /tab-authoring -->
+
+  <!-- ═══ Full Suite Generation tab ═══ -->
+  <div id="tab-suite" class="tab-panel">
+  <div class="suite-grid">
+    <!-- ─── Left: configuration ─── -->
+    <section>
+      <div class="card">
+        <h2>Application under test</h2>
+        <p class="hint">These mirror the variables in your <code>.env</code> (pre-filled from the server). Edit as needed, choose how many fix/heal iterations to allow per failing test, then ① generate the test cases (recon → plan → generate specs) and review the code, and ② run them (run → self-heal → report). Use Pause/Resume to control a run, or Start over to clear old test cases, plan, and logs.</p>
+        <div class="form" id="suiteForm">
+          <label>Base URL <span class="req">*</span><input id="f-BASE_URL" placeholder="http://localhost:8000" /></label>
+          <label>App source dir <span class="req">*</span><input id="f-APP_SOURCE_DIR" placeholder="/path/to/app/src" /></label>
+          <label>App modules / components dir <span class="req">*</span><input id="f-APP_MODULES_DIR" placeholder="/path/to/app/src/modules" /></label>
+          <div class="form-2">
+            <label>App name<input id="f-APP_NAME" placeholder="My App" /></label>
+            <label>Locale / country code<input id="f-COUNTRY_CODE" placeholder="optional, e.g. dk" /></label>
+          </div>
+          <label>Seed data — record IDs/slugs, comma-separated<input id="f-SEED_DATA" placeholder="optional, e.g. t-shirt,sweatshirt" /></label>
+          <div class="form-2">
+            <label>Test username<input id="f-TEST_USERNAME" placeholder="optional" /></label>
+            <label>Test password<input id="f-TEST_PASSWORD" type="password" placeholder="optional" /></label>
+          </div>
+          <label>Model<input id="f-ANTHROPIC_MODEL" placeholder="claude-opus-4-7" /></label>
+          <label class="inline"><input type="checkbox" id="f-FORCE_REGISTER" /> Register a fresh test user on every run</label>
+          <label class="iter">Fix / heal iterations per failing test
+            <input type="number" id="f-iterations" min="0" max="10" value="3" />
+            <small>How many times the agent re-analyses &amp; patches a failing test before giving up.</small>
+          </label>
+        </div>
+        <div class="row">
+          <button class="btn-primary" id="suiteGenBtn">① Generate test cases</button>
+          <button class="btn-run" id="suiteRunBtn">② Run test cases</button>
+        </div>
+        <div class="row">
+          <button class="btn-ghost" id="suitePauseBtn" disabled>⏸ Pause</button>
+          <button class="btn-ghost" id="suiteResumeBtn" disabled>▶ Resume</button>
+          <button class="btn-ghost" id="suiteStartOverBtn">↺ Start over</button>
+        </div>
+        <p class="hint" id="suiteHint"></p>
+      </div>
+    </section>
+
+    <!-- ─── Right: live progress + report ─── -->
+    <section>
+      <div class="card">
+        <h2>Pipeline progress</h2>
+        <ol class="stepper" id="stepper"><li class="stp empty-li">Configure and start a run to see live progress.</li></ol>
+      </div>
+
+      <div class="card" id="statsCard" style="display:none">
+        <h2>Test cases <span id="statCounts" class="counts"></span></h2>
+        <p class="hint" style="margin:0 0 10px">Click a generated test case to view its Playwright code.</p>
+        <div class="tc-table-wrap"><table class="tc-table"><tbody id="tcBody"></tbody></table></div>
+      </div>
+
+      <div class="card" id="codeCard" style="display:none">
+        <div class="card-head">
+          <h2>Generated test code <span class="dur" id="suiteCodeFile"></span></h2>
+          <div class="code-actions">
+            <button class="btn-ghost" id="editSpecBtn">✎ Edit</button>
+            <button class="btn-primary" id="saveSpecBtn" style="display:none">Save</button>
+            <button class="btn-ghost" id="cancelSpecBtn" style="display:none">Cancel</button>
+          </div>
+        </div>
+        <pre class="code" id="suiteCodeView"></pre>
+        <textarea class="code-edit" id="suiteCodeEdit" style="display:none" spellcheck="false"></textarea>
+        <p class="hint" id="specSaveHint" style="display:none;margin:8px 0 0"></p>
+      </div>
+
+      <div class="card" id="healerCard" style="display:none">
+        <h2>Self-healing executor <span class="dur">· runs in background</span></h2>
+        <div id="healerBody"></div>
+      </div>
+
+      <div class="card" id="reportCard" style="display:none">
+        <h2>Coverage report</h2>
+        <div id="reportBody"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <h2 style="margin:0">Detailed pipeline log</h2>
+          <button class="btn-ghost" id="suiteClearLogBtn" style="padding:5px 12px;font-size:12.5px">Clear logs</button>
+        </div>
+        <pre class="log" id="suiteLog" style="max-height:300px;margin-top:12px"></pre>
+      </div>
+    </section>
+  </div>
+  </div><!-- /tab-suite -->
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const EXAMPLES = [
+  "Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout.",
+  "Now test with a coupon code applied.",
+  "Search for a product, open its detail page, and confirm the price is shown.",
+  "Add an item to the cart and confirm the cart badge count increases.",
+];
+
+let currentCode = null;   // last generated spec — drives adapt mode
+let busy = false;
+
+// ── load app context ──────────────────────────────────────────────────────
+async function loadContext() {
+  try {
+    const c = await (await fetch("/api/context")).json();
+    const locale = c.localePrefix ? ` <span class="pill">${c.localePrefix}</span>` : "";
+    $("ctx").innerHTML =
+      `Testing <b>${escapeHtml(c.appName)}</b>${locale}<br>` +
+      `<span class="pill">${escapeHtml(c.framework)}</span>` +
+      `<span class="pill">${c.routeCount} routes</span>` +
+      `<span class="pill">${c.selectorCount} selectors</span>` +
+      (c.actionCount ? `<span class="pill">${c.actionCount} actions</span>` : "") +
+      (c.hasCredentials ? `<span class="pill">✓ auth ready</span>` : "");
+  } catch {
+    $("ctx").textContent = "App context unavailable";
+  }
+}
+
+function renderChips() {
+  $("chips").innerHTML = "";
+  for (const ex of EXAMPLES) {
+    const el = document.createElement("div");
+    el.className = "chip";
+    el.textContent = ex;
+    el.onclick = () => { $("instruction").value = ex; $("instruction").focus(); };
+    $("chips").appendChild(el);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function setBusy(state) {
+  busy = state;
+  $("genBtn").disabled = state;
+  $("runBtn").disabled = state || !currentCode;
+}
+
+function renderCode(code) {
+  const wrap = $("codeWrap");
+  wrap.innerHTML = "";
+  const pre = document.createElement("pre");
+  pre.className = "code";
+  pre.textContent = code;
+  wrap.appendChild(pre);
+  $("authorCodeActions").style.display = code ? "" : "none";
+  // reset edit buttons to view state
+  $("editCodeBtn").style.display = "";
+  $("saveCodeBtn").style.display = "none";
+  $("cancelCodeBtn").style.display = "none";
+}
+
+// ── edit the authored test code in place ──
+function enterAuthorEdit() {
+  if (!currentCode) return;
+  const wrap = $("codeWrap");
+  wrap.innerHTML = "";
+  const ta = document.createElement("textarea");
+  ta.className = "code-edit";
+  ta.id = "authorCodeEdit";
+  ta.spellcheck = false;
+  ta.value = currentCode;
+  wrap.appendChild(ta);
+  ta.focus();
+  $("editCodeBtn").style.display = "none";
+  $("saveCodeBtn").style.display = "";
+  $("cancelCodeBtn").style.display = "";
+  $("genBtn").disabled = true;
+  $("runBtn").disabled = true;
+}
+function saveAuthorEdit() {
+  const ta = $("authorCodeEdit");
+  if (ta) currentCode = ta.value;
+  renderCode(currentCode);
+  $("genBtn").disabled = false;
+  $("runBtn").disabled = !currentCode;
+}
+function cancelAuthorEdit() {
+  renderCode(currentCode);
+  $("genBtn").disabled = false;
+  $("runBtn").disabled = !currentCode;
+}
+
+function enterAdaptMode() {
+  $("authorHeading").textContent = "Modify the test";
+  $("adaptNote").classList.add("show");
+  $("genBtn").textContent = "Adapt test";
+  $("resetBtn").style.display = "";
+  $("instruction").value = "";
+  $("instruction").placeholder = "e.g. Now apply a coupon code and re-check the total.";
+}
+
+function resetAll() {
+  currentCode = null;
+  $("authorHeading").textContent = "What do you want to test?";
+  $("adaptNote").classList.remove("show");
+  $("genBtn").textContent = "Generate test";
+  $("resetBtn").style.display = "none";
+  $("instruction").value = "";
+  $("instruction").placeholder = "e.g. Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout.";
+  $("codeWrap").innerHTML = '<div class="empty">Your generated test will appear here.</div>';
+  $("authorCodeActions").style.display = "none";
+  $("runBtn").disabled = true;
+  clearResult(true);
+}
+
+// ── generate ───────────────────────────────────────────────────────────────
+async function generate() {
+  const instruction = $("instruction").value.trim();
+  if (!instruction) { $("instruction").focus(); return; }
+  setBusy(true);
+  $("genBtn").innerHTML = '<span class="spinner"></span> Translating…';
+  $("authorCodeActions").style.display = "none";
+  $("codeWrap").innerHTML = '<div class="empty"><span class="spinner"></span> Writing Playwright code from your instruction…</div>';
+  try {
+    const resp = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction, previousCode: currentCode || undefined }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Generation failed");
+    currentCode = data.code;
+    renderCode(data.code);
+    if (!$("resetBtn").style.display || $("genBtn").textContent.includes("Adapt") === false) {
+      // first successful generation → switch UI into adapt mode for the next round
+    }
+    enterAdaptMode();
+    $("runBtn").disabled = false;
+    clearResult(true);
+  } catch (err) {
+    $("codeWrap").innerHTML = `<div class="errbox">${escapeHtml(err.message)}</div>`;
+  } finally {
+    $("genBtn").textContent = currentCode ? "Adapt test" : "Generate test";
+    setBusy(false);
+  }
+}
+
+// ── run (streaming) ──────────────────────────────────────────────────────────
+function clearResult(showHint) {
+  $("statusBar").innerHTML = showHint ? '<span class="empty" style="padding:0">Run the test to see the result.</span>' : "";
+  $("steps").innerHTML = "";
+  $("healLog").innerHTML = "";
+  $("errbox").innerHTML = "";
+  $("shot").innerHTML = "";
+  $("log").textContent = "";
+  $("logsWrap").style.display = "none";
+}
+
+async function run() {
+  if (!currentCode) return;
+  setBusy(true);
+  clearResult(false);
+  $("statusBar").innerHTML = '<span class="badge running"><span class="spinner"></span> Running…</span>';
+  $("logsWrap").style.display = "";
+  const logEl = $("log");
+
+  try {
+    const resp = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: currentCode, autoHeal: $("autoHeal").checked }),
+    });
+    if (!resp.ok && !resp.body) throw new Error("Run failed to start");
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+        if (line.trim()) handleEvent(JSON.parse(line), logEl);
+      }
+    }
+  } catch (err) {
+    $("statusBar").innerHTML = '<span class="badge failed">Error</span>';
+    $("errbox").innerHTML = `<div class="errbox">${escapeHtml(err.message)}</div>`;
+  } finally {
+    setBusy(false);
+  }
+}
+
+function handleEvent(ev, logEl) {
+  if (ev.type === "log") {
+    logEl.textContent += ev.line + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  } else if (ev.type === "status") {
+    // keep the running badge; status messages flow into the log too
+    logEl.textContent += "› " + ev.message + "\n";
+  } else if (ev.type === "heal") {
+    // entering a heal round — show a healing badge and a timeline entry
+    $("statusBar").innerHTML =
+      `<span class="badge healing"><span class="spinner"></span> Auto-healing (round ${ev.round}/${ev.maxRounds})…</span>`;
+    const li = document.createElement("li");
+    li.id = `heal-${ev.round}`;
+    li.innerHTML = `↻ Round ${ev.round}: test failed${ev.failingStep ? ` at “${escapeHtml(ev.failingStep)}”` : ""} — analysing & fixing…`;
+    $("healLog").appendChild(li);
+    logEl.textContent += `› ${ev.message}\n`;
+  } else if (ev.type === "heal-fix") {
+    // a fix was produced — show root cause and update the code panel live
+    const li = $(`heal-${ev.round}`);
+    if (li) li.innerHTML = `↻ Round ${ev.round}: <span class="rc">${escapeHtml(ev.rootCause)}</span> — re-running…`;
+    if (ev.code) { currentCode = ev.code; renderCode(ev.code); }
+  } else if (ev.type === "error") {
+    $("statusBar").innerHTML = '<span class="badge failed">Error</span>';
+    $("errbox").innerHTML = `<div class="errbox">${escapeHtml(ev.message)}</div>`;
+  } else if (ev.type === "result") {
+    if (ev.code) { currentCode = ev.code; renderCode(ev.code); }
+    renderResult(ev);
+  }
+}
+
+function renderResult(r) {
+  const sec = (r.durationMs / 1000).toFixed(1);
+  const label = { passed: "✓ Passed", failed: "✕ Failed", timedout: "✕ Timed out", skipped: "Skipped", unknown: "No result" }[r.status] || r.status;
+  const healNote = r.healRounds
+    ? (r.status === "passed"
+        ? `<span class="dur">· ✦ self-healed in ${r.healRounds} round${r.healRounds > 1 ? "s" : ""}</span>`
+        : `<span class="dur">· ${r.healRounds} heal round${r.healRounds > 1 ? "s" : ""} attempted</span>`)
+    : "";
+  $("statusBar").innerHTML =
+    `<span class="badge ${r.status}">${label}</span>` +
+    (r.durationMs ? `<span class="dur">${sec}s</span>` : "") +
+    healNote +
+    (r.title ? `<span class="dur">· ${escapeHtml(r.title)}</span>` : "");
+
+  // step timeline
+  const stepsEl = $("steps");
+  stepsEl.innerHTML = "";
+  for (const s of r.steps || []) {
+    const li = document.createElement("li");
+    li.className = s.error ? "fail" : "ok";
+    const t = s.durationMs ? `${(s.durationMs / 1000).toFixed(1)}s` : "";
+    li.innerHTML =
+      `<span class="mark">${s.error ? "✕" : "✓"}</span>` +
+      `<div class="label">${escapeHtml(s.title)} <span class="t">${t}</span>` +
+      (s.error ? `<div class="err">${escapeHtml(s.error)}</div>` : "") +
+      `</div>`;
+    stepsEl.appendChild(li);
+  }
+
+  if (r.error && r.status !== "passed") {
+    $("errbox").innerHTML = `<div class="errbox">${escapeHtml(r.error)}</div>`;
+  }
+  if (r.screenshot) {
+    $("shot").innerHTML =
+      `<div class="shot"><div class="cap">Screenshot at failure:</div>` +
+      `<img src="/api/artifact?path=${encodeURIComponent(r.screenshot)}" alt="failure screenshot"></div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Full Suite Generation tab
+// ═══════════════════════════════════════════════════════════════════════════
+const CONFIG_FIELDS = ["BASE_URL","APP_SOURCE_DIR","APP_MODULES_DIR","APP_NAME","COUNTRY_CODE","SEED_DATA","TEST_USERNAME","TEST_PASSWORD","ANTHROPIC_MODEL"];
+const PHASE_LABELS = {}; // filled from the "phases" event
+let suiteBusy = false;
+let suitePaused = false;
+let currentRunPromise = null;   // resolves when the active run's stream ends
+const tcRows = new Map();       // id -> { tr, statusEl, status }
+const specCode = new Map();     // id -> { file, code }
+let shownCodeId = null;         // which spec is currently in the code viewer
+const phaseTimings = new Map(); // phase key -> ms (accumulates across generate + run)
+
+// Canonical step order + labels for the report's "Time per step" section.
+const PHASE_DISPLAY = [
+  ["recon","Reconnaissance"],["auth","Auth bootstrap"],["seed","Seed data"],
+  ["plan","Test planning"],["gen","Generating specs"],["run","Running tests"],
+  ["fix","Self-healing & fixing"],["report","Final report"],
+];
+function fmtMs(ms) {
+  if (ms == null) return "";
+  const s = ms / 1000;
+  return s < 60 ? `${s.toFixed(1)}s` : `${Math.floor(s/60)}m ${Math.round(s%60)}s`;
+}
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === `tab-${name}`));
+}
+
+async function loadSuiteDefaults() {
+  try {
+    const d = await (await fetch("/api/pipeline/defaults")).json();
+    for (const f of CONFIG_FIELDS) { const el = $("f-" + f); if (el) el.value = d.config[f] ?? ""; }
+    $("f-FORCE_REGISTER").checked = /^(1|true|yes)$/i.test(d.config.FORCE_REGISTER ?? "");
+    $("f-iterations").value = d.iterations ?? 3;
+  } catch { /* form stays blank */ }
+}
+
+function collectConfig() {
+  const config = {};
+  for (const f of CONFIG_FIELDS) config[f] = $("f-" + f).value.trim();
+  config.FORCE_REGISTER = $("f-FORCE_REGISTER").checked ? "true" : "";
+  return { config, iterations: parseInt($("f-iterations").value, 10) || 0 };
+}
+
+function setSuiteBusy(b) {
+  suiteBusy = b;
+  if (!b) suitePaused = false;
+  updateControls();
+}
+// Pause enabled while running & not paused; Resume enabled while running & paused.
+function updateControls() {
+  $("suiteGenBtn").disabled = suiteBusy;
+  $("suiteRunBtn").disabled = suiteBusy;
+  $("suitePauseBtn").disabled = !suiteBusy || suitePaused;
+  $("suiteResumeBtn").disabled = !suiteBusy || !suitePaused;
+}
+
+// ── stepper ──
+function renderStepper(phases) {
+  PHASE_ORDER.length = 0;
+  $("stepper").innerHTML = "";
+  for (const p of phases) {
+    PHASE_LABELS[p.key] = p.label;
+    PHASE_ORDER.push(p.key);
+    const li = document.createElement("li");
+    li.className = "stp pending";
+    li.id = "stp-" + p.key;
+    li.innerHTML = `<span class="ico">${PHASE_ORDER.length}</span><div class="body"><div class="ttl">${escapeHtml(p.label)}</div><div class="det"></div></div>`;
+    $("stepper").appendChild(li);
+  }
+}
+const PHASE_ORDER = [];
+function setPhaseState(key, state, ms) {
+  const li = $("stp-" + key);
+  if (!li) return;
+  li.classList.remove("pending", "active", "done");
+  li.classList.add(state);
+  if (state === "active") li.querySelector(".ico").innerHTML = '<span class="spinner" style="width:9px;height:9px;border-width:2px"></span>';
+  else if (state === "done") li.querySelector(".ico").textContent = "✓";
+  if (state === "done" && ms != null) {
+    const det = li.querySelector(".det");
+    if (det) det.textContent = fmtMs(ms);
+  }
+}
+
+// ── test-case table ──
+function renderTestCases(cases) {
+  tcRows.clear();
+  $("tcBody").innerHTML = "";
+  $("statsCard").style.display = "";
+  for (const c of cases) {
+    const id = c.id.toUpperCase();
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      `<td class="id">${escapeHtml(c.id)}</td>` +
+      `<td><div class="ttl">${escapeHtml(c.title)}</div><div class="cat">${escapeHtml(c.category || "")}</div></td>` +
+      `<td class="st"><span class="tcbadge ${c.status}">${String(c.status).replace("-", " ")}</span></td>`;
+    tr.onclick = () => showSpecCode(id);
+    $("tcBody").appendChild(tr);
+    tcRows.set(id, { tr, statusEl: tr.querySelector(".st"), status: c.status });
+    if (specCode.has(id)) tr.classList.add("clickable");
+  }
+  updateCounts();
+}
+
+// Show a generated spec's code in the code card; highlight the selected row.
+function showSpecCode(id) {
+  const entry = specCode.get(String(id).toUpperCase());
+  if (!entry) return;
+  shownCodeId = String(id).toUpperCase();
+  exitSpecEdit();
+  $("codeCard").style.display = "";
+  $("suiteCodeFile").textContent = entry.file ? "· " + entry.file : "";
+  $("suiteCodeView").textContent = entry.code;
+  for (const [rid, row] of tcRows) row.tr.classList.toggle("selected", rid === shownCodeId);
+}
+
+// ── edit a generated spec; Save writes back to disk so the next run uses it ──
+function exitSpecEdit() {
+  $("suiteCodeView").style.display = "";
+  $("suiteCodeEdit").style.display = "none";
+  $("editSpecBtn").style.display = "";
+  $("saveSpecBtn").style.display = "none";
+  $("cancelSpecBtn").style.display = "none";
+  $("specSaveHint").style.display = "none";
+}
+function enterSpecEdit() {
+  if (!shownCodeId) return;
+  const entry = specCode.get(shownCodeId);
+  if (!entry) return;
+  if (suiteBusy) { $("specSaveHint").textContent = "Can't edit while a run is in progress."; $("specSaveHint").style.display = ""; return; }
+  $("suiteCodeEdit").value = entry.code;
+  $("suiteCodeView").style.display = "none";
+  $("suiteCodeEdit").style.display = "";
+  $("editSpecBtn").style.display = "none";
+  $("saveSpecBtn").style.display = "";
+  $("cancelSpecBtn").style.display = "";
+  $("specSaveHint").style.display = "none";
+  $("suiteCodeEdit").focus();
+}
+async function saveSpecEdit() {
+  if (!shownCodeId) return;
+  const entry = specCode.get(shownCodeId);
+  if (!entry) return;
+  const code = $("suiteCodeEdit").value;
+  $("saveSpecBtn").disabled = true;
+  try {
+    const r = await fetch("/api/pipeline/spec", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: entry.file, code }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+    entry.code = code;                       // update in-memory copy
+    $("suiteCodeView").textContent = code;
+    exitSpecEdit();
+    $("specSaveHint").textContent = `✓ Saved to ${entry.file} — the next “Run test cases” will use this version.`;
+    $("specSaveHint").style.display = "";
+  } catch (e) {
+    $("specSaveHint").textContent = "Save failed: " + e.message;
+    $("specSaveHint").style.display = "";
+  } finally {
+    $("saveSpecBtn").disabled = false;
+  }
+}
+function cancelSpecEdit() { exitSpecEdit(); }
+// Lifecycle rank — a row only ever moves forward (planned → generated → running
+// → terminal). This ignores stale/out-of-order updates from parsing live logs,
+// except the final report reconciliation (also terminal) which legitimately
+// overwrites an earlier terminal status.
+const STATUS_RANK = { planned: 0, generated: 1, running: 2, "gen-failed": 3, failed: 3, timedout: 3, skipped: 3, passed: 3 };
+function setTcStatus(id, status) {
+  const row = tcRows.get(String(id).toUpperCase());
+  if (!row || STATUS_RANK[status] === undefined) return;
+  if (STATUS_RANK[status] < STATUS_RANK[row.status]) return; // never regress
+  row.status = status;
+  row.statusEl.innerHTML = `<span class="tcbadge ${status}">${status.replace("-", " ")}</span>`;
+  updateCounts();
+}
+function markAllRunning() {
+  for (const [, row] of tcRows) {
+    if (row.status === "generated") { row.status = "running"; row.statusEl.innerHTML = `<span class="tcbadge running">running</span>`; }
+  }
+  updateCounts();
+}
+function updateCounts() {
+  let pass = 0, fail = 0, run = 0, total = tcRows.size;
+  for (const [, r] of tcRows) {
+    if (r.status === "passed") pass++;
+    else if (r.status === "failed" || r.status === "timedout" || r.status === "gen-failed") fail++;
+    else if (r.status === "running") run++;
+  }
+  $("statCounts").innerHTML =
+    `<span class="c">${total} total</span>` +
+    (run ? `<span class="c run"><b>${run}</b> running</span>` : "") +
+    `<span class="c pass"><b>${pass}</b> passed</span>` +
+    `<span class="c fail"><b>${fail}</b> failed</span>`;
+}
+
+// Reset the suite progress UI to its idle empty state.
+function resetSuiteUI() {
+  $("stepper").innerHTML = '<li class="stp empty-li">Configure and start a run to see live progress.</li>';
+  ["statsCard","codeCard","healerCard","reportCard"].forEach(id => $(id).style.display = "none");
+  $("tcBody").innerHTML = ""; tcRows.clear();
+  specCode.clear(); shownCodeId = null;
+  $("suiteCodeView").textContent = ""; $("suiteCodeFile").textContent = "";
+  $("healerBody").innerHTML = ""; $("reportBody").innerHTML = "";
+  $("suiteLog").textContent = ""; $("suiteHint").textContent = "";
+  phaseTimings.clear();
+  PHASE_ORDER.length = 0;
+}
+
+// ── run the pipeline (mode = "generate" | "run") ──
+async function runSuite(mode) {
+  if (suiteBusy) return;
+  const { config, iterations } = collectConfig();
+  for (const req of ["BASE_URL","APP_SOURCE_DIR","APP_MODULES_DIR"]) {
+    if (!config[req]) { $("suiteHint").textContent = `Please fill in ${req}.`; $("f-"+req).focus(); return; }
+  }
+  setSuiteBusy(true);
+  $("suiteHint").textContent = "";
+  $("stepper").innerHTML = '<li class="stp empty-li"><span class="spinner"></span> Starting…</li>';
+  $("reportCard").style.display = "none"; $("reportBody").innerHTML = "";
+  $("healerCard").style.display = "none"; $("healerBody").innerHTML = "";
+  // Logs accumulate across generate → run; only "Clear logs"/"Start over" wipe them.
+  const logEl = $("suiteLog");
+  const stamp = new Date().toLocaleTimeString();
+  logEl.textContent += `${logEl.textContent ? "\n" : ""}═══ ${mode === "run" ? "Run test cases" : "Generate test cases"} · ${stamp} ═══\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+  // Generate starts fresh; Run keeps the generated table/code (re-emitted by the server).
+  if (mode === "generate") {
+    $("statsCard").style.display = "none"; $("codeCard").style.display = "none";
+    $("tcBody").innerHTML = ""; tcRows.clear();
+    specCode.clear(); shownCodeId = null; $("suiteCodeView").textContent = "";
+  }
+
+  try {
+    const resp = await fetch("/api/pipeline/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config, iterations, mode }),
+    });
+    if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e.error || `HTTP ${resp.status}`); }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+        if (line.trim()) handleSuiteEvent(JSON.parse(line), logEl);
+      }
+    }
+  } catch (err) {
+    $("suiteHint").textContent = "Error: " + err.message;
+  } finally {
+    setSuiteBusy(false);
+  }
+}
+
+function handleSuiteEvent(ev, logEl) {
+  switch (ev.type) {
+    case "phases": renderStepper(ev.phases); break;
+    case "phase":
+      setPhaseState(ev.key, ev.state, ev.ms);
+      if (ev.state === "done" && ev.ms != null) phaseTimings.set(ev.key, ev.ms);
+      break;
+    case "testcases": renderTestCases(ev.cases); break;
+    case "tc-status": setTcStatus(ev.id, ev.status); break;
+    case "tc-code": {
+      const id = String(ev.id).toUpperCase();
+      specCode.set(id, { file: ev.file, code: ev.code });
+      tcRows.get(id)?.tr.classList.add("clickable");
+      if (!shownCodeId) showSpecCode(id); // auto-show the first generated spec
+      break;
+    }
+    case "all-running": markAllRunning(); break;
+    case "report": renderReport(ev.report, ev.timings); break;
+    case "healer-report": renderHealer(ev.suites); break;
+    case "paused":
+      suitePaused = true; updateControls(); $("suiteHint").textContent = "⏸ Paused.";
+      break;
+    case "resumed":
+      suitePaused = false; updateControls(); $("suiteHint").textContent = "";
+      break;
+    case "stopped":
+      $("suiteHint").textContent = "⏹ Stopped.";
+      break;
+    case "log": {
+      const tag = ev.source === "healer" ? "[healer] " : "";
+      logEl.textContent += tag + ev.line + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+      break;
+    }
+    case "done": {
+      // mark any still-active phase done
+      PHASE_ORDER.forEach(k => { const li = $("stp-" + k); if (li && li.classList.contains("active")) setPhaseState(k, "done"); });
+      if ($("suiteHint").textContent.startsWith("⏹")) break; // keep "Stopped by user"
+      if (ev.mode === "generate") {
+        $("suiteHint").textContent = "✓ Test cases generated — review the code, then click ② Run test cases.";
+      } else {
+        $("suiteHint").textContent = ev.hasReport ? "✓ Run complete." : "Run finished, but no coverage report was produced — see the detailed log.";
+      }
+      break;
+    }
+  }
+}
+
+function renderReport(r, timings) {
+  $("reportCard").style.display = "";
+  // Prefer authoritative server timings (persisted across the generate + run
+  // steps); fall back to whatever the client accumulated this session.
+  const tmap = timings && Object.keys(timings).length
+    ? new Map(Object.entries(timings))
+    : phaseTimings;
+  const rate = parseInt(r.passRate, 10) || 0;
+  const rateCls = rate >= 90 ? "good" : rate >= 60 ? "mid" : "bad";
+  let html =
+    `<div class="rep-hero">` +
+      `<div class="rate ${rateCls}">${escapeHtml(r.passRate)}</div>` +
+      `<div class="meta"><b>${r.totalPassed}</b> passed · <b>${r.totalFailed}</b> failed · <b>${r.totalSkipped}</b> skipped` +
+      ` · <b>${r.totalGenerated}</b> generated<br>${escapeHtml(r.applicationName || "")} · ${escapeHtml(r.baseUrl || "")}</div>` +
+    `</div>`;
+
+  const cats = Object.entries(r.byCategory || {}).sort();
+  if (cats.length) {
+    html += `<div class="rep-cats">`;
+    for (const [name, c] of cats) {
+      const tot = c.total || 1;
+      html += `<div class="rep-cat"><span class="name">${escapeHtml(name)}</span>` +
+        `<span class="bar"><span class="ok" style="width:${(c.passed/tot*100).toFixed(0)}%"></span><span class="no" style="width:${(c.failed/tot*100).toFixed(0)}%"></span></span>` +
+        `<span class="n">${c.passed}/${c.total}</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  // ── time per step (merged generate + run, from authoritative server timings) ──
+  const timed = PHASE_DISPLAY.filter(([k]) => tmap.has(k));
+  if (timed.length) {
+    let total = 0;
+    html += `<div class="rep-timing"><div class="ttl" style="font-weight:700;font-size:13px;margin-bottom:6px">Time per step</div>`;
+    for (const [k, label] of timed) {
+      const ms = Number(tmap.get(k)); total += ms;
+      html += `<div class="rep-time"><span class="name">${escapeHtml(label)}</span><span class="val">${fmtMs(ms)}</span></div>`;
+    }
+    html += `<div class="rep-time total"><span class="name">Total (timed steps)</span><span class="val">${fmtMs(total)}</span></div></div>`;
+  }
+
+  if ((r.bugsFound || []).length) {
+    html += `<div class="rep-bugs"><div class="ttl" style="font-weight:700;font-size:13px">Application bugs found (need developer action)</div>`;
+    for (const b of r.bugsFound) {
+      html += `<div class="rep-bug"><div class="bt">${escapeHtml(b.id)} · ${escapeHtml(b.title)}</div>` +
+        `<div class="bf">${escapeHtml(b.file || "")}</div><div>${escapeHtml(b.suggestedFix || b.rootCause || "")}</div></div>`;
+    }
+    html += `</div>`;
+  }
+  html += `<div class="rep-actions">` +
+    `<button class="btn-primary" id="viewReportBtn">📊 View full HTML report ↗</button>` +
+    `<span class="rep-links">Markdown: <code>tests/generated/coverage-report.md</code></span>` +
+    `</div>`;
+  $("reportBody").innerHTML = html;
+  const vr = $("viewReportBtn");
+  if (vr) vr.onclick = () => window.open("/report/", "_blank");
+}
+
+function renderHealer(suites) {
+  if (!suites || !suites.length) return;
+  $("healerCard").style.display = "";
+  let html = "";
+  for (const s of suites) {
+    html += `<div style="margin-bottom:10px">` +
+      `<div style="font-weight:600">${escapeHtml(s.suiteName || "suite")}</div>` +
+      `<div class="heal-stat">` +
+        `<span class="hs"><b>${s.steps?.length ?? 0}</b> steps</span>` +
+        `<span class="hs"><b>${s.passed ?? 0}</b> passed</span>` +
+        `<span class="hs healed"><b>${s.healed ?? 0}</b> healed</span>` +
+        `<span class="hs"><b>${s.failed ?? 0}</b> failed</span>` +
+      `</div>`;
+    for (const ev of (s.healEvents || []).slice(0, 6)) {
+      html += `<div class="heal-event">Step ${ev.stepIndex}: ${escapeHtml(ev.intent || "")}<br>` +
+        `<span class="diff-old">- ${escapeHtml(ev.oldLocator || "")}</span><br>` +
+        `<span class="diff-new">+ ${escapeHtml(ev.newLocator || "")}</span> <span style="color:var(--muted)">(${escapeHtml(ev.confidence || "")})</span></div>`;
+    }
+    html += `</div>`;
+  }
+  $("healerBody").innerHTML = html;
+}
+
+// ── suite controls ──
+async function pauseSuite() {
+  if (!suiteBusy || suitePaused) return;
+  await fetch("/api/pipeline/pause", { method: "POST" }).catch(() => {});
+  // UI state is driven by the server's "paused"/"resumed" events.
+}
+async function resumeSuite() {
+  if (!suiteBusy || !suitePaused) return;
+  await fetch("/api/pipeline/resume", { method: "POST" }).catch(() => {});
+}
+async function startOver() {
+  // Stop an in-flight run and wait for its stream to fully close first.
+  if (suiteBusy) {
+    await fetch("/api/pipeline/stop", { method: "POST" }).catch(() => {});
+    if (currentRunPromise) { try { await currentRunPromise; } catch {} }
+  }
+  $("suiteStartOverBtn").disabled = true;
+  try {
+    const r = await fetch("/api/pipeline/clean", { method: "POST" });
+    const d = await r.json().catch(() => ({}));
+    resetSuiteUI();
+    $("suiteHint").textContent = d.removed?.length
+      ? `↺ Cleared ${d.removed.length} item(s). Ready for a fresh generation.`
+      : "↺ Nothing to clear. Ready for a fresh generation.";
+  } catch (e) {
+    $("suiteHint").textContent = "Start over failed: " + e.message;
+  } finally {
+    $("suiteStartOverBtn").disabled = false;
+  }
+}
+
+// ── wire up ──────────────────────────────────────────────────────────────────
+$("genBtn").onclick = generate;
+$("runBtn").onclick = run;
+$("resetBtn").onclick = resetAll;
+$("editCodeBtn").onclick = enterAuthorEdit;
+$("saveCodeBtn").onclick = saveAuthorEdit;
+$("cancelCodeBtn").onclick = cancelAuthorEdit;
+$("instruction").addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !busy) generate();
+});
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+$("suiteGenBtn").onclick = () => { currentRunPromise = runSuite("generate"); };
+$("suiteRunBtn").onclick = () => { currentRunPromise = runSuite("run"); };
+$("suitePauseBtn").onclick = pauseSuite;
+$("suiteResumeBtn").onclick = resumeSuite;
+$("suiteStartOverBtn").onclick = startOver;
+$("suiteClearLogBtn").onclick = () => { $("suiteLog").textContent = ""; };
+$("editSpecBtn").onclick = enterSpecEdit;
+$("saveSpecBtn").onclick = saveSpecEdit;
+$("cancelSpecBtn").onclick = cancelSpecEdit;
+renderChips();
+loadContext();
+loadSuiteDefaults();
+</script>
+</body>
+</html>

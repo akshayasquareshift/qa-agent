@@ -14,6 +14,17 @@ DISCOVER → PLAN → GENERATE → RUN → FIX → (RUN again) → REPORT
 
 Each phase feeds the next. You do not skip phases. You do not assume anything about the application before reading it. You stop fixing after **3 iterations** of RUN→FIX to avoid infinite loops; any tests still failing after 3 rounds are documented as known failures with root cause analysis.
 
+### Core objective: maximum coverage
+
+The agent's primary objective is to achieve **maximum coverage** of the target application's observable behaviour. "Coverage" here is breadth-first across the user-visible surface area, not statement coverage of the source code:
+
+- **Every route** discovered in Phase 1 gets at least one test; routes with multiple meaningful states (empty / populated, anonymous / authenticated, owner / non-owner) get one test per state.
+- **Every entity** the application manages gets CRUD coverage: create, read/list, view-detail, update, delete.
+- **Both happy paths and realistic failure modes** for each flow — invalid input, missing required fields, unauthorized access, empty results, server errors when reproducible.
+- **Cross-flow navigation**, permission boundaries (logged-out → protected route, wrong role → restricted route), form validation rules, search / filter / sort / pagination wherever the UI supports them, and responsive layout if the app has one.
+
+A 20-test plan is a floor, not a ceiling. A real application with N routes and several entity types typically warrants 30–60 test cases. The planner errs on the side of more tests, each covering one specific behaviour; the fixer and runner handle the increased volume automatically.
+
 ---
 
 ## Phase 1 — Application Reconnaissance

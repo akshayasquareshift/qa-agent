@@ -3,6 +3,14 @@ node_modules/
 # Playwright run artefacts
 tests/test-results/
 tests/playwright-report/
+tests/blob-store/
+tests/blob-archive/
+
+# Natural-Language authoring scratch spec (regenerated on every run from the UI)
+tests/nlp-authored/
+
+# Full-suite pipeline per-step timing state (written by the author UI)
+tests/generated/.pipeline-timings.json
 
 # Generated spec files — commit if you want to version them; ignore if you prefer a clean repo
 # tests/generated/*.spec.ts
@@ -11,6 +19,12 @@ tests/playwright-report/
 
 # Compiled TypeScript
 agents/dist/
+
+# Per-run terminal transcripts (one file per agent invocation — regenerable, noisy)
+tests/generated/logs/
+
+# Local IDE / Claude Code settings
+.claude/
 
 # Environment variables
 .env

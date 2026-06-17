@@ -1,14 +1,23 @@
 # Autonomous QA Agent
 
+> 📖 **New here?** See the **[Agentic QA Guide](AGENTIC_QA_GUIDE.md)** — a single shareable doc
+> covering the architecture, flow, use cases, setup, and how to run/test (Web UI + CLI).
+
 An AI-powered Playwright test generation, execution, and self-healing pipeline. Point it at any web application and it will:
 
+**Core objective:** the agent aims for **maximum coverage** of the target application — every route, every entity's CRUD operations, happy paths *and* realistic failure modes, permission boundaries, form validation, navigation, search/filter/sort, and responsive layouts where applicable. It does not stop at a minimum quota.
+
 1. **Discover** routes, `data-testid` selectors, and framework details from your source code
-2. **Plan** a full E2E test suite via Claude — prioritised by user flow and dependency order
-3. **Generate** self-contained Playwright TypeScript spec files — one per test case
-4. **Run** all tests with live terminal output
-5. **Fix** failures automatically — AI root-cause analysis patches broken specs (never touches app source)
-6. **Learn** — accumulates patterns in `agents/learnings.json` and reuses them on future runs
-7. **Report** — produces a Markdown coverage report with any discovered application bugs flagged for developers
+2. **Bootstrap auth** — if a register/signup flow exists, register a fresh user and seed the credentials into `.env` so every downstream auth-required test runs against a known-good account
+3. **Bootstrap seed data** — walk every `/new`/`/create`/`/add` route and populate the DB with one record per entity, so list/view/edit/search tests find data to act on
+4. **Plan** a full E2E test suite via Claude — prioritised by user flow and dependency order, sized for maximum coverage of the discovered surface area
+5. **Generate** self-contained Playwright TypeScript spec files — one per test case
+6. **Run** all tests with live terminal output
+7. **Fix** failures automatically — AI root-cause analysis patches broken specs (never touches app source)
+8. **Learn** — accumulates patterns in `agents/learnings.json` and reuses them on future runs
+9. **Report** — produces a Markdown coverage report with any discovered application bugs prominently flagged for developer review
+
+It also ships a **[Natural-Language Test Authoring UI](#natural-language-test-authoring-web-ui)** (`pnpm author`) — a browser tool where a non-technical user types a test in plain English, and the agent generates the Playwright code, runs it, and reports pass/fail.
 
 ---
 
@@ -117,6 +126,125 @@ pnpm --filter @qa/agents run run-only
 
 ---
 
+## Natural-Language Test Authoring (web UI)
+
+A browser UI where a **non-technical user** (product owner, business analyst) types a
+test in plain English. The agent translates it into executable Playwright code, runs it,
+and reports the result — no code required. Change the instruction and the agent adapts the
+test in place.
+
+> Plain English → generated Playwright code → live test run → pass/fail with a step
+> timeline. Then modify the instruction (e.g. *"now test with a coupon code applied"*) and
+> watch the agent adapt.
+
+### Start it
+
+Make sure your application is running at `BASE_URL`, then:
+
+```bash
+pnpm author
+```
+
+This launches a local server and prints the URL — open it in your browser:
+
+```
+▸ Open  http://localhost:5180
+```
+
+The default port is **5180**. If it's taken, set a different one:
+
+```bash
+NLP_PORT=4100 pnpm author
+```
+
+> **Note:** `5173` (Vite's default) is intentionally *not* used — it's frequently occupied
+> by another dev/Docker server. If you hit a blank page or an **"Upgrade Required"** (HTTP
+> 426) response, something else is squatting on the port — pick a free one via `NLP_PORT`.
+
+The UI has two tabs:
+- **Plain-English Authoring** — write/adapt a single test from natural language (below).
+- **Full Suite Generation** — run the entire `pnpm generate` pipeline from the browser
+  (see [Full Suite Generation tab](#full-suite-generation-tab)).
+
+### Using it (Plain-English Authoring)
+
+1. **Describe the test** in the text box, or click one of the example chips.
+   *e.g. "Verify that a user who adds 3 items to the cart and removes 1 sees the correct total at checkout."*
+2. Click **Generate test** — the agent writes a self-contained Playwright spec (shown on
+   the right), using your app's real routes, selectors, base URL, and seeded credentials.
+   You can **✎ Edit** the generated code in place (Save/Cancel); the edited version is what
+   **▶ Run test** executes.
+3. Click **▶ Run test** — Playwright output streams live, and you get a pass/fail badge, a
+   ✓/✕ **step timeline**, the duration, the error message, and a screenshot on failure.
+4. **Auto-heal (on by default).** If the test fails and the *"Auto-heal on failure"* box is
+   ticked, the agent automatically diagnoses the failure, rewrites the spec, and re-runs —
+   up to 3 rounds. You see each round's root cause in a heal timeline, the code panel updates
+   live to the healed version, and the result shows *"✦ self-healed in N rounds"* when it
+   goes green. Untick the box to get a single one-shot run instead.
+5. **Adapt it** — the box switches to *"Modify the test"*. Describe a change
+   (*"now test with a coupon code applied"*) and click **Adapt test**; the agent edits the
+   existing spec minimally rather than starting over. **Start over** clears everything.
+
+### Full Suite Generation tab
+
+This tab runs the **autonomous pipeline** (the same flow as `pnpm generate`) from the browser,
+split into two explicit steps so you can review the generated tests before running them. The
+**self-healing executor (`@qa/healer`) runs concurrently in the background** during the run step.
+
+1. **Configure the app under test.** The form mirrors the variables documented in
+   [Configuration](#configuration) (`BASE_URL`, `APP_SOURCE_DIR`, `APP_MODULES_DIR`, `APP_NAME`,
+   `COUNTRY_CODE`, `SEED_DATA`, test credentials, model, force-register). Fields are pre-filled
+   from the server's current environment (your `.env`); edit any of them inline. Values entered
+   here are injected as env overrides for this run — nothing is written back to `.env`.
+2. **Choose iterations.** *Fix / heal iterations per failing test* maps to `MAX_FIX_ROUNDS` —
+   how many times the agent re-analyses and patches a failing spec before giving up.
+3. **① Generate test cases** (recon → auth → seed → plan → generate specs, via `--generate-only`).
+   Live progress streams in: a **phase stepper**, a **test-case table** that fills after planning
+   and flips each case `planned → generated`, and — **click any generated row to view its
+   Playwright code** in the code panel, where you can **✎ Edit** it. **Save** writes the change
+   back to the spec file on disk, so the next **② Run test cases** uses your edited version.
+4. **② Run test cases** (run → self-heal/fix loop → report, via `--run-only`; the healer runs
+   alongside). Statuses go `running → passed/failed`; when it finishes the UI renders the
+   **coverage report** (pass rate, per-category bars, app bugs) plus a **self-healing summary**
+   from the background healer. The full HTML report is still written to `tests/playwright-report/`.
+
+**Run controls:**
+- **⏸ Pause** / **▶ Resume** — truly suspends and resumes the run (OS `SIGSTOP`/`SIGCONT` on the
+  whole subprocess tree); Resume continues from exactly where it paused.
+- **↺ Start over** — stops any in-progress run, **deletes the old test cases (`tc*.spec.ts`),
+  test plan (`test-plan.json`), and run logs (`tests/generated/logs/`)**, and resets the UI to a
+  clean idle state (it does not auto-start a new run).
+
+The **detailed pipeline log** accumulates across the Generate and Run steps (each step is
+prefixed with a header) and is only wiped by the **Clear logs** button or by Start over. The
+**final report** shows the **time taken per step** (planning, generating, running, …) and a
+**View full HTML report** button that opens the merged Playwright report (served at `/report/`)
+in a new tab.
+
+Only one full-suite run can be active at a time. Closing the tab also aborts the run and kills
+the whole subprocess tree.
+
+### How it works
+
+| Piece | Role |
+| ----- | ---- |
+| `agents/src/nlp-server.ts` | Zero-dependency HTTP server (Node built-ins). Serves the UI and exposes `/api/context`, `/api/generate`, and `/api/run` (streams Playwright output live, and drives the auto-heal loop). |
+| `agents/src/nlp-authoring.ts` | Translates plain English → Playwright spec. Three operations: **fresh** (new test), **adapt** (minimal edit of the current spec), and **heal** (rewrite a failed spec from the error + step timeline). Wraps each phase in `test.step()` so the UI can show a readable timeline. |
+| `agents/src/nlp-pipeline.ts` | Drives the **Full Suite** tab: spawns the agent (`--generate-only` or `--run-only`, env injected from the form) and — in run mode — the `@qa/healer` executor concurrently, parses the agent's log into structured progress events (phases, per-test-case status, generated code), and surfaces the coverage + healing reports. Children are spawned `detached` so pause (`SIGSTOP`), resume (`SIGCONT`), and stop kill/signal the whole tree. Endpoints: `/api/pipeline/defaults`, `/run`, `/pause`, `/resume`, `/stop`, `/clean`. |
+| `agents/public/index.html` | The single-page UI (both tabs). |
+| `tests/playwright.nlp.config.ts` | Isolated Playwright config — NLP-authored specs live in `tests/nlp-authored/` (git-ignored, regenerated per run), kept out of the main `generated/` suite. |
+
+The UI reuses the same context the autonomous agent does: it reads your app's routes,
+`data-testid` selectors, **and the real labels of clickable elements** (button/link text
+paired with their testids) via `APP_SOURCE_DIR` / `APP_MODULES_DIR`, plus any seeded login
+credentials. This action vocabulary stops the generator from guessing button text (e.g.
+targeting the real `add-product-button` instead of a guessed *"Add to cart"*). The auto-heal
+loop (max rounds configurable via `NLP_MAX_HEAL_ROUNDS`, default 3) then closes the remaining
+last-mile gaps — strict-mode selector clashes, missing preconditions — without the user
+touching code.
+
+---
+
 ## Output files
 
 | File | Description |
@@ -125,7 +253,35 @@ pnpm --filter @qa/agents run run-only
 | `tests/generated/tc*.spec.ts` | Generated Playwright spec files |
 | `tests/generated/coverage-report.md` | Human-readable coverage report |
 | `tests/generated/coverage-report.json` | Machine-readable coverage data |
+| `tests/generated/logs/run-<timestamp>.log` | Full terminal transcript of the run (agent + Playwright output) |
+| `tests/playwright-report/` | Merged HTML report — every test from every fix round with final status, error messages, screenshots, traces |
 | `agents/learnings.json` | Accumulated patterns — **commit this file** so learnings persist across CI runs |
+
+---
+
+## Viewing reports
+
+After a run completes, four artefacts give you different angles on the results:
+
+```bash
+# 1. Markdown coverage summary (open in any editor / Markdown viewer)
+cat tests/generated/coverage-report.md
+code tests/generated/coverage-report.md     # or your editor of choice
+
+# 2. Machine-readable coverage data (for CI scripts, dashboards)
+cat tests/generated/coverage-report.json | jq .
+
+# 3. Interactive HTML report — every test, every fix round, with failure traces
+pnpm -C tests exec playwright show-report   # opens http://localhost:9323
+# or directly:
+npx -p @playwright/test playwright show-report tests/playwright-report
+
+# 4. Full run log (agent output + Playwright output, one file per run)
+less tests/generated/logs/run-*.log         # all past runs
+less "$(ls -t tests/generated/logs/run-*.log | head -1)"   # just the latest
+```
+
+**Tip:** the HTML report is the best place to debug failures — click any failed test for the error message, stack trace, screenshot, and (on retried tests) the Playwright trace viewer.
 
 ---
 
@@ -143,15 +299,21 @@ qa-agent/
 │   │   ├── fixer.ts            ← Claude: analyses failures, patches specs
 │   │   ├── learner.ts          ← Reads/writes learnings.json
 │   │   ├── reporter.ts         ← Builds the Markdown coverage report
+│   │   ├── nlp-server.ts       ← Natural-Language authoring web server (`pnpm author`)
+│   │   ├── nlp-authoring.ts    ← Claude: plain English → Playwright spec (fresh + adapt)
 │   │   └── types.ts            ← Shared TypeScript types
+│   ├── public/
+│   │   └── index.html          ← Natural-Language authoring UI (single page)
 │   ├── AGENT_PROMPT.md         ← Full architecture spec and prompt reference
 │   ├── learnings.json          ← Auto-generated; commit to persist across runs
 │   ├── package.json
 │   └── tsconfig.json
 ├── tests/
 │   ├── generated/              ← Spec files written here by the agent
+│   ├── nlp-authored/           ← NLP-authored spec (git-ignored, regenerated per run)
 │   ├── test-results/           ← Playwright artefacts (git-ignored)
-│   ├── playwright.config.ts
+│   ├── playwright.config.ts    ← Config for the autonomous agent suite
+│   ├── playwright.nlp.config.ts ← Config for NLP-authored tests
 │   └── package.json
 ├── .env.example                ← Copy to .env and fill in your paths
 ├── .gitignore
@@ -182,6 +344,26 @@ After each run the agent calls Claude to extract generalizable patterns from fai
   ]
 }
 ```
+
+---
+
+## Auth bootstrap
+
+Phase 1.5 looks for a register/signup route in your app source. If it finds one:
+
+1. Generates fresh credentials (`qaagent_<timestamp>@example.com` + strong password)
+2. Generates and runs a one-off Playwright spec that registers that user
+3. On success, writes `TEST_USERNAME` / `TEST_PASSWORD` / `TEST_EMAIL` to `.env`
+4. Deletes the bootstrap spec so subsequent phases don't re-register
+
+Every downstream auth-required test then uses the seeded credentials.
+
+**Opting out:** set `TEST_USERNAME` in `.env` to any real account (i.e. not the
+`your_test_username` placeholder) and the bootstrap will skip. Setting
+`FORCE_REGISTER=true` overrides this and re-registers on every run.
+
+If the bootstrap fails (no register route, network issue, etc.) the pipeline
+continues with whatever credentials are already in `.env`.
 
 ---
 

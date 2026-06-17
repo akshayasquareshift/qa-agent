@@ -1,6 +1,6 @@
-import { spawnSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { spawnTeed } from "./logger";
 import type { TestRunResult, TestStatus, FailureClass } from "./types";
 
 const TESTS_DIR = path.join(__dirname, "../../tests");
@@ -58,15 +58,33 @@ export interface RunSummary {
  * Uses playwright.config.ts reporters — list reporter streams live output; json reporter
  * writes structured results to test-results/results.json for programmatic parsing.
  */
-export function runPlaywright(
+export async function runPlaywright(
   round: number,
   grepPattern?: string
-): RunSummary {
+): Promise<RunSummary> {
   const resultsDir = path.join(TESTS_DIR, "test-results");
   fs.mkdirSync(resultsDir, { recursive: true });
 
   // Remove stale results file so we never silently read data from a previous run
   if (fs.existsSync(RESULTS_FILE)) fs.unlinkSync(RESULTS_FILE);
+
+  // Each round writes its blob into its own outputDir under `blob-store/`. The
+  // blob store lives OUTSIDE `test-results/` because the `--output=test-results`
+  // flag below makes Playwright wipe that directory at the start of every run,
+  // which would destroy any prior-round blobs stored inside it. On round 0 we
+  // wipe `blob-store/` and `blob-archive/` to start clean.
+  const blobRoot = path.join(TESTS_DIR, "blob-store");
+  const roundBlobDir = path.join(blobRoot, `round-${round}`);
+  const archiveDir = path.join(TESTS_DIR, "blob-archive");
+  if (round === 0) {
+    if (fs.existsSync(blobRoot)) fs.rmSync(blobRoot, { recursive: true, force: true });
+    if (fs.existsSync(archiveDir)) fs.rmSync(archiveDir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(roundBlobDir, { recursive: true });
+  fs.mkdirSync(archiveDir, { recursive: true });
+  const blobName = `round-${round}.zip`;
+  // Relative to TESTS_DIR (cwd of the child) — playwright.config.ts resolves it from there.
+  const blobDirRel = path.join("blob-store", `round-${round}`);
 
   const args = [
     "playwright",
@@ -78,12 +96,14 @@ export function runPlaywright(
     args.push(`--grep=${grepPattern}`);
   }
 
-  // stdio:'inherit' lets the list reporter stream each test result live to the terminal.
-  // JSON results are written to RESULTS_FILE by the json reporter in playwright.config.ts.
   const t0 = Date.now();
-  spawnSync("npx", args, {
+  await spawnTeed("npx", args, {
     cwd: TESTS_DIR,
-    stdio: "inherit",
+    env: {
+      ...process.env,
+      QA_BLOB_DIR: blobDirRel,
+      QA_BLOB_NAME: blobName,
+    },
   });
   const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\n      ─── completed in ${elapsedSec}s ───`);
@@ -144,7 +164,7 @@ function collectResults(
       const failingLine = firstError?.location?.line;
       const screenshot = result?.attachments?.find((a) => a.name === "screenshot");
 
-      // Extract TC ID from the spec title (e.g. "TC006 - Remove item from cart")
+      // Extract TC ID from the spec title (e.g. "TC006 - User login with valid credentials")
       const idMatch = spec.title.match(/TC\d+/i);
       const specId = idMatch ? idMatch[0].toUpperCase() : spec.title.slice(0, 10);
 
@@ -205,4 +225,65 @@ export function failingIds(results: TestRunResult[]): string[] {
  */
 export function buildGrepPattern(ids: string[]): string {
   return ids.join("|");
+}
+
+/**
+ * Merge every per-round blob zip into one unified HTML report.
+ *
+ * Each round writes its blob into its own `blob-store/round-N/` directory (see
+ * runPlaywright). Here we flatten them into `blob-archive/` and hand that to
+ * `playwright merge-reports`.
+ *
+ *   - Round 0's blob has results for every generated spec
+ *   - Each fix round's blob has results only for the previously-failing tests
+ *   - merge-reports overlays later rounds onto earlier ones — for any test that
+ *     appears in multiple rounds, the latest result wins
+ *
+ * Result: `tests/playwright-report/index.html` shows every test case from the
+ * suite with its final status (and full failure details for anything still failing).
+ * View it with `pnpm -C tests exec playwright show-report`.
+ */
+export async function mergeBlobReports(): Promise<void> {
+  const blobRoot = path.join(TESTS_DIR, "blob-store");
+  const archiveDir = path.join(TESTS_DIR, "blob-archive");
+  fs.mkdirSync(archiveDir, { recursive: true });
+
+  // Collect every round's blob into a flat archive directory for merge-reports.
+  if (fs.existsSync(blobRoot)) {
+    for (const entry of fs.readdirSync(blobRoot)) {
+      const roundDir = path.join(blobRoot, entry);
+      if (!fs.statSync(roundDir).isDirectory()) continue;
+      for (const file of fs.readdirSync(roundDir)) {
+        if (!file.endsWith(".zip")) continue;
+        fs.copyFileSync(path.join(roundDir, file), path.join(archiveDir, file));
+      }
+    }
+  }
+
+  if (fs.readdirSync(archiveDir).filter((f) => f.endsWith(".zip")).length === 0) {
+    console.log("      No blob reports found — skipping HTML merge.");
+    return;
+  }
+
+  const reportDir = path.join(TESTS_DIR, "playwright-report");
+  if (fs.existsSync(reportDir)) {
+    fs.rmSync(reportDir, { recursive: true, force: true });
+  }
+
+  // PLAYWRIGHT_HTML_OPEN=never stops merge-reports from launching a static server
+  // for the merged HTML report. Without it, Playwright sees failing tests in the
+  // report and auto-serves on a local port, blocking the parent process forever —
+  // which prevents wrapHtmlReportWithCoverageTab from ever running.
+  const proc = await spawnTeed(
+    "npx",
+    ["playwright", "merge-reports", "blob-archive", "--reporter=html"],
+    {
+      cwd: TESTS_DIR,
+      env: { ...process.env, PLAYWRIGHT_HTML_OPEN: "never" },
+    },
+  );
+
+  if (proc.status !== 0) {
+    console.log(`      Warning: merge-reports exited with code ${proc.status}.`);
+  }
 }

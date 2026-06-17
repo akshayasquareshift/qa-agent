@@ -1,10 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { createMessage } from "./ai-client";
 import * as fs from "fs";
 import * as path from "path";
 import type { TestRunResult, TestFix, BugReport, Learning, LearningsStore } from "./types";
 
 const LEARNINGS_FILE = path.join(__dirname, "../learnings.json");
-const client = new Anthropic();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Read — format learnings for injection into prompts
@@ -89,12 +88,12 @@ ${bugSummaries || "(none)"}
 Extract 3-8 generalizable, reusable learnings. Each learning must apply beyond this specific app — it should be a pattern useful for any similar technology stack.
 
 Focus on:
-- Framework-specific gotchas (e.g. Next.js SSR streaming, server actions, parallel routes)
-- Selector patterns that commonly fail (strict mode, wrong element scope)
-- Flow prerequisites that tests often miss
-- Timing patterns (when to use toBeEnabled vs toBeVisible, waitForResponse)
+- Framework-specific gotchas (SSR streaming, server actions, SPA routing, async rendering)
+- Selector patterns that commonly fail (strict mode, wrong element scope, dynamic content)
+- Flow prerequisites that tests often miss (auth state, required data setup, navigation order)
+- Timing patterns (when to use toBeEnabled vs toBeVisible, waitForResponse, waitForURL)
 
-Do NOT include app-specific facts like specific product slugs, test user emails, or URL paths.
+Do NOT include app-specific facts like specific user credentials, test data values, or hardcoded URL paths.
 
 Return ONLY a valid JSON array. No markdown fences:
 [
@@ -108,17 +107,13 @@ Return ONLY a valid JSON array. No markdown fences:
 ]`;
 
   try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const response = await createMessage({
       max_tokens: 2000,
       system: "You are a QA automation expert. Respond ONLY with a valid JSON array. No markdown fences.",
       messages: [{ role: "user", content: prompt }],
     });
 
-    const raw = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("")
+    const raw = response.content[0].text
       .replace(/^```(?:json)?\s*/m, "")
       .replace(/\s*```\s*$/m, "")
       .trim();

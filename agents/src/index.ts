@@ -1,11 +1,15 @@
 import * as fs from "fs";
 import * as path from "path";
 import { readCodebaseContext } from "./codebase-reader";
+import { bootstrapRegistration } from "./registrar";
+import { bootstrapSeedData } from "./seeder";
+import { loadSeedState } from "./seed-state";
 import { runPlanner } from "./planner";
 import { runAutomator } from "./automator";
-import { runPlaywright, failingIds, buildGrepPattern } from "./runner";
+import { runPlaywright, failingIds, buildGrepPattern, mergeBlobReports } from "./runner";
+import { setupFileLogging, getLogFilePath } from "./logger";
 import { analyseAndFix } from "./fixer";
-import { generateCoverageReport, writeCoverageReport } from "./reporter";
+import { generateCoverageReport, writeCoverageReport, wrapHtmlReportWithCoverageTab } from "./reporter";
 import { loadLearnings, loadFixerLearnings, saveSessionLearnings } from "./learner";
 import type { GeneratedSpec, TestRunResult, TestFix, BugReport } from "./types";
 
@@ -36,8 +40,13 @@ function banner(title: string) {
 }
 
 async function main() {
+  // Tee terminal output to tests/generated/logs/run-<timestamp>.log. Must run
+  // before any console output so the banner and every subsequent line are captured.
+  const logFile = setupFileLogging();
+
   const sessionStart = Date.now();
   banner("Autonomous QA Agent");
+  console.log(`  Log: ${logFile}\n`);
 
   // ── Phase 1: Reconnaissance ──────────────────────────────────────────────────
   let t = Date.now();
@@ -46,7 +55,7 @@ async function main() {
   console.log(`      Framework:  ${ctx.framework} (${ctx.renderingModel})`);
   console.log(`      Routes:     ${ctx.routes.length}`);
   console.log(`      Selectors:  ${ctx.selectors.length} unique data-testid values`);
-  console.log(`      Items:      ${ctx.productHandles.join(", ")}`);
+  console.log(`      Seed data:  ${ctx.seedData.length ? ctx.seedData.join(", ") : "(none)"}`);
   console.log(`      Base URL:   ${ctx.baseUrl}`);
 
   // Load accumulated learnings from previous sessions to inject into generation + fixing
@@ -58,6 +67,56 @@ async function main() {
     : 0;
   console.log(`      Learnings:  ${learningsCount > 0 ? `${learningsCount} pattern(s) loaded from agents/learnings.json` : "none yet (first run)"}`);
   console.log(`      Done        (${elapsed(t)})`);
+
+  // ── Phase 1.5: Auth Bootstrap ────────────────────────────────────────────────
+  // If a register/signup route exists, create a real account and seed credentials
+  // into .env so every downstream auth-required test runs against a known-good user.
+  if (!RUN_ONLY) {
+    t = Date.now();
+    phase("[1.5/7]", "Auth bootstrap — checking for register/signup flow...");
+    try {
+      const reg = await bootstrapRegistration(ctx);
+      if (!reg.attempted) {
+        console.log(`      Skipped:    ${reg.reason}`);
+      } else if (reg.success) {
+        console.log(`      Registered: ${reg.username}  (${reg.email})`);
+        console.log(`      Route:      ${reg.routePath}`);
+        console.log(`      Seeded →    .env  (TEST_USERNAME, TEST_PASSWORD, TEST_EMAIL)`);
+      } else {
+        console.log(`      ⚠ Registration failed: ${reg.reason}`);
+        console.log(`      Continuing with credentials currently in .env.`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`      ⚠ Bootstrap error: ${msg}`);
+      console.log(`      Continuing with credentials currently in .env.`);
+    }
+    console.log(`      Done        (${elapsed(t)})`);
+  }
+
+  // ── Phase 1.6: Seed Data Bootstrap ───────────────────────────────────────────
+  // After auth, walk every create/new/add route once and populate the DB with
+  // one record per entity so list / view / edit / search tests have data to act
+  // on. This eliminates the "skipped — no seed data" cascade for downstream tests.
+  if (!RUN_ONLY) {
+    t = Date.now();
+    phase("[1.6/7]", "Seed bootstrap — populating baseline DB records...");
+    try {
+      const seed = await bootstrapSeedData(ctx);
+      if (!seed.attempted) {
+        console.log(`      Skipped:    ${seed.reason}`);
+      } else if (seed.success) {
+        console.log(`      Result:     ${seed.reason}`);
+      } else {
+        console.log(`      ⚠ Seed failed: ${seed.reason}`);
+        console.log(`      Tests that depend on seed data may skip with 'no seed data' reasons.`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`      ⚠ Seed bootstrap error: ${msg}`);
+    }
+    console.log(`      Done        (${elapsed(t)})`);
+  }
 
   // ── Phase 2: Planning / load from disk ──────────────────────────────────────
   let plan: Awaited<ReturnType<typeof runPlanner>>;
@@ -112,7 +171,7 @@ async function main() {
       process.stdout.write(`      ${counter} ${label}`);
       const specStart = Date.now();
       try {
-        const spec = await runAutomator(tc, ctx, specLearnings);
+        const spec = await runAutomator(tc, ctx, loadSeedState(), specLearnings);
         specs.push(spec);
         genOk++;
         console.log(`✓  (${elapsed(specStart)})`);
@@ -139,7 +198,7 @@ async function main() {
   const allFixes: TestFix[] = [];
   const allBugs: BugReport[] = [];
 
-  let runSummary = runPlaywright(0);
+  let runSummary = await runPlaywright(0);
   allResults.push(...runSummary.results);
   console.log(
     `      Initial result: ${runSummary.passed} passed  ${runSummary.failed} failed  ${runSummary.skipped} skipped  (${elapsed(t)})`
@@ -161,7 +220,7 @@ async function main() {
       (r) => r.status === "failed" || r.status === "timedout"
     );
 
-    const { fixes, bugs } = await analyseAndFix(failingResults, ctx, round, fixerLearnings);
+    const { fixes, bugs } = await analyseAndFix(failingResults, ctx, round, loadSeedState(), fixerLearnings);
     allFixes.push(...fixes);
     allBugs.push(...bugs);
 
@@ -178,7 +237,7 @@ async function main() {
 
     t = Date.now();
     console.log(`\n      Re-running ${failing.length} previously-failing test(s)...`);
-    runSummary = runPlaywright(round, buildGrepPattern(failing));
+    runSummary = await runPlaywright(round, buildGrepPattern(failing));
 
     const roundResults = runSummary.results.map((r) => ({ ...r, round }));
     allResults.push(...roundResults);
@@ -210,9 +269,15 @@ async function main() {
   await saveSessionLearnings(allResults, allFixes, allBugs);
 
   // ── Phase 7: Report ──────────────────────────────────────────────────────────
+  // Markdown / JSON coverage first — the HTML wrapper reads coverage-report.md.
   phase("[7/7]", "Generating final report...");
   const report = generateCoverageReport(plan, specs, allResults, allFixes, allBugs, APP_NAME);
   writeCoverageReport(report);
+
+  // ── Merge per-round Playwright blobs + wrap with a Coverage tab ─────────────
+  console.log("\n      Merging per-round Playwright blobs into a unified HTML report...");
+  await mergeBlobReports();
+  wrapHtmlReportWithCoverageTab();
 
   // ── Final summary ─────────────────────────────────────────────────────────────
   const totalTime = elapsed(sessionStart);
@@ -248,8 +313,10 @@ async function main() {
     }
   }
 
-  console.log(`\n  Report: tests/generated/coverage-report.md`);
-  console.log(`  Specs:  tests/generated/  (${specs.length} files)\n`);
+  console.log(`\n  Report:      tests/generated/coverage-report.md`);
+  console.log(`  HTML report: tests/playwright-report/  (every test across every round; view with \`pnpm -C tests exec playwright show-report\`)`);
+  console.log(`  Specs:       tests/generated/  (${specs.length} files)`);
+  console.log(`  Run log:     ${getLogFilePath() ?? "(not set)"}\n`);
 
   process.exit(report.totalFailed > 0 ? 1 : 0);
 }
