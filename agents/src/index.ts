@@ -11,6 +11,8 @@ import { setupFileLogging, getLogFilePath } from "./logger";
 import { analyseAndFix } from "./fixer";
 import { generateCoverageReport, writeCoverageReport, wrapHtmlReportWithCoverageTab } from "./reporter";
 import { loadLearnings, loadFixerLearnings, saveSessionLearnings } from "./learner";
+import { checkSourceMatchesApp } from "./recon-check";
+import { authSmokeTest } from "./auth-smoke";
 import type { GeneratedSpec, TestRunResult, TestFix, BugReport } from "./types";
 
 const GENERATED_DIR = path.join(__dirname, "../../tests/generated");
@@ -68,6 +70,11 @@ async function main() {
   console.log(`      Learnings:  ${learningsCount > 0 ? `${learningsCount} pattern(s) loaded from agents/learnings.json` : "none yet (first run)"}`);
   console.log(`      Done        (${elapsed(t)})`);
 
+  // ── Phase 1.2: Source ↔ running-app sanity check (warn-only) ──────────────────
+  // The whole suite's accuracy depends on the analysed source matching the app
+  // at BASE_URL. Warn loudly (never block) if discovered routes 404 there.
+  await checkSourceMatchesApp(ctx);
+
   // ── Phase 1.5: Auth Bootstrap ────────────────────────────────────────────────
   // If a register/signup route exists, create a real account and seed credentials
   // into .env so every downstream auth-required test runs against a known-good user.
@@ -114,6 +121,33 @@ async function main() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.log(`      ⚠ Seed bootstrap error: ${msg}`);
+    }
+    console.log(`      Done        (${elapsed(t)})`);
+  }
+
+  // ── Phase 1.7: Auth smoke test ───────────────────────────────────────────────
+  // Verify login works ONCE before generating the suite — a broken login cascades
+  // to every auth-gated test. Warn-and-continue by default; STRICT_AUTH=true aborts.
+  if (!RUN_ONLY) {
+    t = Date.now();
+    phase("[1.7/7]", "Auth smoke test — verifying login before generation...");
+    try {
+      const smoke = await authSmokeTest(ctx, loadSeedState());
+      if (!smoke.attempted) {
+        console.log(`      Skipped:    ${smoke.reason}`);
+      } else if (smoke.success) {
+        console.log(`      ✓ Login verified — auth-gated tests can rely on it.`);
+      } else {
+        console.log(`      ⚠ AUTH SMOKE TEST FAILED: ${smoke.reason}`);
+        console.log(`      ⚠ Every auth-gated test will likely fail. Check the login route + credentials (TEST_USERNAME/TEST_PASSWORD).`);
+        if ((process.env.STRICT_AUTH ?? "").toLowerCase() === "true") {
+          console.log(`      STRICT_AUTH=true — aborting before generation.`);
+          process.exit(1);
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`      ⚠ Auth smoke test error: ${msg}`);
     }
     console.log(`      Done        (${elapsed(t)})`);
   }

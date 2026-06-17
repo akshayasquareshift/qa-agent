@@ -228,6 +228,31 @@ export function buildGrepPattern(ids: string[]): string {
 }
 
 /**
+ * Run a single tagged spec (by grep) and return whether it passed. Used for
+ * one-off pre-flight specs (e.g. the auth smoke test) where we only need a
+ * pass/fail verdict, not the full per-test result parsing.
+ */
+export async function runTaggedSpec(grep: string): Promise<boolean> {
+  const resultsDir = path.join(TESTS_DIR, "test-results");
+  fs.mkdirSync(resultsDir, { recursive: true });
+  if (fs.existsSync(RESULTS_FILE)) fs.unlinkSync(RESULTS_FILE);
+
+  await spawnTeed("npx", ["playwright", "test", `--grep=${grep}`, `--output=${resultsDir}`], {
+    cwd: TESTS_DIR,
+  });
+
+  if (!fs.existsSync(RESULTS_FILE)) return false;
+  try {
+    const raw = JSON.parse(fs.readFileSync(RESULTS_FILE, "utf-8"));
+    const expected = raw?.stats?.expected ?? 0;
+    const unexpected = raw?.stats?.unexpected ?? 0;
+    return expected > 0 && unexpected === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Merge every per-round blob zip into one unified HTML report.
  *
  * Each round writes its blob into its own `blob-store/round-N/` directory (see

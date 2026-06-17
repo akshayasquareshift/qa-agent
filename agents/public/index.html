@@ -216,6 +216,7 @@
   .counts .c.pass b { color: var(--green); }
   .counts .c.fail b { color: var(--red); }
   .counts .c.run b { color: var(--accent); }
+  .counts .c.skip b { color: var(--amber); }
 
   /* ── Test-case table ── */
   .tc-table-wrap { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 9px; }
@@ -342,11 +343,16 @@
     <section>
       <div class="card">
         <h2>Application under test</h2>
-        <p class="hint">These mirror the variables in your <code>.env</code> (pre-filled from the server). Edit as needed, choose how many fix/heal iterations to allow per failing test, then ① generate the test cases (recon → plan → generate specs) and review the code, and ② run them (run → self-heal → report). Use Pause/Resume to control a run, or Start over to clear old test cases, plan, and logs.</p>
+        <p class="hint">These mirror the variables in your <code>.env</code> (pre-filled from the server). Point <b>Base URL</b> at a local or cloud-hosted app. To test an app whose source is on GitHub, set the <b>GitHub repo URL</b> and the agent fetches it for you (no manual clone). Choose how many fix/heal iterations to allow per failing test, then ① generate the test cases and review the code, and ② run them. Use Pause/Resume to control a run, or Start over to clear old test cases, plan, and logs.</p>
         <div class="form" id="suiteForm">
-          <label>Base URL <span class="req">*</span><input id="f-BASE_URL" placeholder="http://localhost:8000" /></label>
-          <label>App source dir <span class="req">*</span><input id="f-APP_SOURCE_DIR" placeholder="/path/to/app/src" /></label>
-          <label>App modules / components dir <span class="req">*</span><input id="f-APP_MODULES_DIR" placeholder="/path/to/app/src/modules" /></label>
+          <label>Base URL <span class="req">*</span><input id="f-BASE_URL" placeholder="https://your-app.example.com" /></label>
+          <div class="form-2">
+            <label>GitHub repo URL<input id="f-APP_REPO_URL" placeholder="optional — https://github.com/org/repo" /></label>
+            <label>Branch<input id="f-APP_REPO_BRANCH" placeholder="optional, e.g. main" /></label>
+          </div>
+          <p class="hint" style="margin:-2px 0 2px">Leave the repo URL empty to use local absolute paths below. With a repo URL set, the agent clones it for you and the two paths below are read <b>relative to the repo root</b> (e.g. <code>src/app</code>, <code>src/modules</code>).</p>
+          <label>App source dir <span class="req">*</span><input id="f-APP_SOURCE_DIR" placeholder="/path/to/app/src  (or repo-relative: src/app)" /></label>
+          <label>App modules / components dir <span class="req">*</span><input id="f-APP_MODULES_DIR" placeholder="/path/to/app/src/modules  (or repo-relative: src/modules)" /></label>
           <div class="form-2">
             <label>App name<input id="f-APP_NAME" placeholder="My App" /></label>
             <label>Locale / country code<input id="f-COUNTRY_CODE" placeholder="optional, e.g. dk" /></label>
@@ -695,7 +701,7 @@ function renderResult(r) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Full Suite Generation tab
 // ═══════════════════════════════════════════════════════════════════════════
-const CONFIG_FIELDS = ["BASE_URL","APP_SOURCE_DIR","APP_MODULES_DIR","APP_NAME","COUNTRY_CODE","SEED_DATA","TEST_USERNAME","TEST_PASSWORD","ANTHROPIC_MODEL"];
+const CONFIG_FIELDS = ["BASE_URL","APP_REPO_URL","APP_REPO_BRANCH","APP_SOURCE_DIR","APP_MODULES_DIR","APP_NAME","COUNTRY_CODE","SEED_DATA","TEST_USERNAME","TEST_PASSWORD","ANTHROPIC_MODEL"];
 const PHASE_LABELS = {}; // filled from the "phases" event
 let suiteBusy = false;
 let suitePaused = false;
@@ -880,17 +886,19 @@ function markAllRunning() {
   updateCounts();
 }
 function updateCounts() {
-  let pass = 0, fail = 0, run = 0, total = tcRows.size;
+  let pass = 0, fail = 0, run = 0, skip = 0, total = tcRows.size;
   for (const [, r] of tcRows) {
     if (r.status === "passed") pass++;
     else if (r.status === "failed" || r.status === "timedout" || r.status === "gen-failed") fail++;
     else if (r.status === "running") run++;
+    else if (r.status === "skipped") skip++;
   }
   $("statCounts").innerHTML =
     `<span class="c">${total} total</span>` +
     (run ? `<span class="c run"><b>${run}</b> running</span>` : "") +
     `<span class="c pass"><b>${pass}</b> passed</span>` +
-    `<span class="c fail"><b>${fail}</b> failed</span>`;
+    `<span class="c fail"><b>${fail}</b> failed</span>` +
+    (skip ? `<span class="c skip"><b>${skip}</b> skipped</span>` : "");
 }
 
 // Reset the suite progress UI to its idle empty state.
