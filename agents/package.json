@@ -12,7 +12,9 @@
     "run-only": "tsx --env-file=../.env src/index.ts --run-only",
     "author": "tsx --env-file=../.env src/nlp-server.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2"
+  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "tsx": "^4.7.0",
