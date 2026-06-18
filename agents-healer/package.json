@@ -9,6 +9,7 @@
     "heal:ui": "tsx src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
     "playwright": "^1.49.0"
   },
   "devDependencies": {
