@@ -99,7 +99,9 @@ export interface GeneratedSpec {
 // Test run results — output of Phase 4 (runner)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type TestStatus = "passed" | "failed" | "timedout" | "skipped";
+// "invalid" = the generated spec failed to compile (e.g. truncated output) so it
+// was quarantined and never run — distinct from an intentional "skipped".
+export type TestStatus = "passed" | "failed" | "timedout" | "skipped" | "invalid";
 
 export type FailureClass =
   | "SELECTOR_STALE"  // testid changed or never existed in source
@@ -229,6 +231,7 @@ export interface CoverageReport {
   totalPassed: number;
   totalFailed: number;
   totalSkipped: number;
+  totalInvalid: number; // specs that failed to compile and were quarantined
   passRate: string; // e.g. "92%"
   byCategory: Record<string, { total: number; passed: number; failed: number }>;
   byPriority: Record<string, { total: number; passed: number; failed: number }>;
@@ -240,6 +243,7 @@ export interface CoverageReport {
     priority: string;
     category: string;
     status: TestStatus;
+    reason?: string; // why a spec is invalid/skipped (e.g. "generation truncated — invalid syntax")
     durationMs: number;
     fixRoundsNeeded: number;
   }>;

@@ -67,6 +67,60 @@ try {
   };
 }
 
+// The Authoring tab sends the same config object the Full Suite form uses, so
+// generated/healed specs honor the Base URL, locale, source dirs, credentials,
+// etc. the user set in the UI — not just the .env values read once at startup.
+// We apply those overrides to process.env around the (in-process) authoring call
+// and rebuild the app context from them, caching by config signature to avoid
+// re-reading the source on every generate. This is a single-user local server,
+// so there are no cross-request env races in practice (the UI also disables its
+// buttons while a request is in flight).
+function uiConfigSignature(config: Record<string, string>): string {
+  return JSON.stringify(ALLOWED_CONFIG_KEYS.map((k) => config[k] ?? ""));
+}
+
+let authoringCtxSig: string | null = null;
+let authoringCtx: AppContext = appContext;
+
+async function withUiConfig<T>(
+  config: Record<string, string>,
+  fn: (ctx: AppContext) => Promise<T>
+): Promise<T> {
+  const hasOverride = ALLOWED_CONFIG_KEYS.some((k) => (config[k] ?? "") !== "");
+  if (!hasOverride) return fn(appContext);
+
+  const saved: Record<string, string | undefined> = {};
+  for (const key of ALLOWED_CONFIG_KEYS) {
+    saved[key] = process.env[key];
+    const v = config[key];
+    if (v !== undefined && v !== "") process.env[key] = String(v);
+  }
+  try {
+    const sig = uiConfigSignature(config);
+    if (sig !== authoringCtxSig) {
+      try {
+        authoringCtx = readCodebaseContext();
+        authoringCtxSig = sig;
+        console.log(
+          `  Rebuilt app context from UI config: ${authoringCtx.baseUrl} — ` +
+          `${authoringCtx.routes.length} routes, ${authoringCtx.selectors.length} selectors`
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+        console.warn(`  ⚠ Could not rebuild app context from UI config (${msg}). Using startup context.`);
+        authoringCtx = appContext;
+        authoringCtxSig = null;
+      }
+    }
+    return await fn(authoringCtx);
+  } finally {
+    for (const key of ALLOWED_CONFIG_KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+}
+
 // ── small helpers ────────────────────────────────────────────────────────────
 
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
@@ -117,34 +171,49 @@ const REPORT_DIR = path.join(__dirname, "../../tests/playwright-report");
 
 // ── route handlers ─────────────────────────────────────────────────────────
 
-function handleContext(res: http.ServerResponse): void {
-  const seedState = loadSeedState();
-  // De-dupe selectors for display.
-  const seen = new Set<string>();
-  const selectors = appContext.selectors
-    .filter((s) => (seen.has(s.testId) ? false : (seen.add(s.testId), true)))
-    .slice(0, 200)
-    .map((s) => ({ testId: s.testId, context: s.context }));
+async function handleContext(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  // Honor an optional UI config (sent by the Authoring tab) so the displayed
+  // context — base URL, locale, route/selector counts — matches what generation
+  // will actually use. With no body, fall back to the startup (.env) context.
+  let config: Record<string, string> = {};
+  try {
+    const raw = await readBody(req);
+    if (raw) config = ((JSON.parse(raw) as { config?: Record<string, string> }).config) ?? {};
+  } catch {
+    /* no / invalid body → startup context */
+  }
 
-  sendJson(res, 200, {
-    appName: process.env.APP_NAME ?? "the application",
-    baseUrl: appContext.baseUrl,
-    framework: appContext.framework,
-    renderingModel: appContext.renderingModel,
-    localePrefix: appContext.countryCode ? `/${appContext.countryCode}` : "",
-    routeCount: appContext.routes.length,
-    selectorCount: selectors.length,
-    actionCount: appContext.actionLabels.length,
-    routes: appContext.routes.slice(0, 60),
-    selectors,
-    hasCredentials: Boolean(seedState?.credentials || (process.env.TEST_USERNAME && process.env.TEST_PASSWORD)),
-    seedEntities: seedState?.entities?.map((e) => e.entityName) ?? [],
+  const summary = await withUiConfig(config, async (ctx) => {
+    const seedState = loadSeedState();
+    // De-dupe selectors for display.
+    const seen = new Set<string>();
+    const selectors = ctx.selectors
+      .filter((s) => (seen.has(s.testId) ? false : (seen.add(s.testId), true)))
+      .slice(0, 200)
+      .map((s) => ({ testId: s.testId, context: s.context }));
+
+    return {
+      appName: process.env.APP_NAME ?? "the application",
+      baseUrl: ctx.baseUrl,
+      framework: ctx.framework,
+      renderingModel: ctx.renderingModel,
+      localePrefix: ctx.countryCode ? `/${ctx.countryCode}` : "",
+      routeCount: ctx.routes.length,
+      selectorCount: selectors.length,
+      actionCount: ctx.actionLabels.length,
+      routes: ctx.routes.slice(0, 60),
+      selectors,
+      hasCredentials: Boolean(seedState?.credentials || (process.env.TEST_USERNAME && process.env.TEST_PASSWORD)),
+      seedEntities: seedState?.entities?.map((e) => e.entityName) ?? [],
+    };
   });
+
+  sendJson(res, 200, summary);
 }
 
 async function handleGenerate(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const raw = await readBody(req);
-  let body: { instruction?: string; previousCode?: string };
+  let body: { instruction?: string; previousCode?: string; config?: Record<string, string> };
   try {
     body = JSON.parse(raw || "{}");
   } catch {
@@ -156,12 +225,14 @@ async function handleGenerate(req: http.IncomingMessage, res: http.ServerRespons
   }
 
   try {
-    const result = await authorTestFromNaturalLanguage({
-      instruction,
-      ctx: appContext,
-      seedState: loadSeedState(),
-      previousCode: body.previousCode,
-    });
+    const result = await withUiConfig(body.config ?? {}, (ctx) =>
+      authorTestFromNaturalLanguage({
+        instruction,
+        ctx,
+        seedState: loadSeedState(),
+        previousCode: body.previousCode,
+      })
+    );
     sendJson(res, 200, result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -175,12 +246,13 @@ async function handleGenerate(req: http.IncomingMessage, res: http.ServerRespons
  */
 async function handleRun(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const raw = await readBody(req);
-  let body: { code?: string; autoHeal?: boolean; maxRounds?: number };
+  let body: { code?: string; autoHeal?: boolean; maxRounds?: number; config?: Record<string, string> };
   try {
     body = JSON.parse(raw || "{}");
   } catch {
     return sendJson(res, 400, { error: "Invalid JSON body" });
   }
+  const config = body.config ?? {};
   let code = (body.code ?? "").trim();
   if (!code) {
     return sendJson(res, 400, { error: "No test code to run." });
@@ -218,14 +290,16 @@ async function handleRun(req: http.IncomingMessage, res: http.ServerResponse): P
     });
 
     try {
-      const healed = await healNlpSpec({
-        code,
-        errorMessage: result.error ?? "Test failed with no error message.",
-        failingStep,
-        passedSteps,
-        ctx: appContext,
-        seedState: loadSeedState(),
-      });
+      const healed = await withUiConfig(config, (ctx) =>
+        healNlpSpec({
+          code,
+          errorMessage: result.error ?? "Test failed with no error message.",
+          failingStep,
+          passedSteps,
+          ctx,
+          seedState: loadSeedState(),
+        })
+      );
       code = healed.code;
       emit({ type: "heal-fix", round, rootCause: healed.rootCause, code });
       emit({ type: "status", message: `Re-running (round ${round})…` });
@@ -577,7 +651,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
     const route = `${req.method} ${url.pathname}`;
 
-    if (route === "GET /api/context") return handleContext(res);
+    if (route === "GET /api/context" || route === "POST /api/context") return void (await handleContext(req, res));
     if (route === "POST /api/generate") return void (await handleGenerate(req, res));
     if (route === "POST /api/run") return void (await handleRun(req, res));
     if (route === "GET /api/pipeline/defaults") return handlePipelineDefaults(res);

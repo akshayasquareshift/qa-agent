@@ -21,9 +21,18 @@ hand. It has three ways to use it:
 
 All three are usable from a **browser UI** (`pnpm author`) or the **command line**.
 
-> **AI provider:** the agent calls Claude through the **Claude Code CLI** (`claude`), using your
-> existing Claude Code login. **No API key is required** — calls run against your Claude
-> Pro/Max subscription.
+> **AI provider:** the agent supports **three providers, auto-selected by which key is set**
+> (precedence **Gemini → Anthropic API → Claude CLI**):
+> 1. **Gemini API key** — set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) to call Google Gemini via
+>    `@google/genai` (billed per-token; headless-friendly).
+> 2. **Anthropic API key** — set `ANTHROPIC_API_KEY` to call the Anthropic Messages API directly
+>    (billed per-token; best for cloud/GCP where there's no interactive login).
+> 3. **Claude Code CLI** (default for local dev) — if neither key is set, the agent shells out to
+>    the `claude` CLI using your existing `claude login`. **No API key required** — calls run
+>    against your Claude Pro/Max subscription.
+>
+> Optional model overrides: `GEMINI_MODEL` (defaults to `gemini-2.5-flash` when unset; set explicitly to use any other model, e.g. `gemini-2.5-pro`), `ANTHROPIC_MODEL`
+> (default `claude-opus-4-8`).
 
 ---
 
@@ -214,13 +223,16 @@ cp .env.example .env
 | `SEED_DATA` | | Comma-separated record IDs/slugs already in your DB (any domain: products, patients, …). |
 | `APP_NAME` | | Display name shown in the report. |
 | `MAX_FIX_ROUNDS` | | Max AI fix/heal iterations per failing test (default `3`). |
+| `GEMINI_API_KEY` / `GOOGLE_API_KEY` | | Set to use the **Gemini** provider (Google, via `@google/genai`). Highest precedence. |
+| `GEMINI_MODEL` | | Gemini model override — defaults to `gemini-2.5-flash` when unset; set explicitly to use any other model (e.g. `gemini-2.5-pro`). |
+| `ANTHROPIC_API_KEY` | | Set to use the **Anthropic API** provider (used when no Gemini key is set). |
 | `ANTHROPIC_MODEL` | | Optional model override (e.g. `claude-opus-4-7`; aliases `opus`/`sonnet`/`haiku`). |
-| `CLAUDE_BIN` | | Path to the `claude` binary if it isn't on `PATH`. |
+| `CLAUDE_BIN` | | Path to the `claude` binary if it isn't on `PATH` (CLI mode only). |
 | `NLP_PORT` | | Web-UI port (default `5180`). |
 | `NLP_MAX_HEAL_ROUNDS` | | Auto-heal rounds in the Plain-English tab (default `3`). |
 
-> **Auth is `claude login`, not an API key.** (An older note in `README.md` mentioning
-> `ANTHROPIC_API_KEY` is out of date — ignore it.)
+> **Provider is auto-selected by which key is set** (precedence **Gemini → Anthropic API →
+> Claude CLI**). With no API key set, the agent uses `claude login` (no key required).
 
 ### Testing a cloud-hosted app whose source is on GitHub
 

@@ -5,6 +5,7 @@ import type {
   GeneratedSpec,
   CoverageReport,
   TestRunResult,
+  TestStatus,
   TestFix,
   BugReport,
 } from "./types";
@@ -18,7 +19,9 @@ export function generateCoverageReport(
   runResults: TestRunResult[],
   fixes: TestFix[],
   bugs: BugReport[],
-  applicationName = "Application"
+  applicationName = "Application",
+  // specId -> reason for specs that failed to compile and were quarantined (never run).
+  invalidSpecs: Map<string, string> = new Map()
 ): CoverageReport {
   const byCategory: Record<string, { total: number; passed: number; failed: number }> = {};
   const byPriority: Record<string, { total: number; passed: number; failed: number }> = {};
@@ -35,7 +38,11 @@ export function generateCoverageReport(
 
   const specRows = specs.map((s) => {
     const run = finalStatus.get(s.testCase.id);
-    const status = run?.status ?? "skipped";
+    const invalidReason = invalidSpecs.get(s.testCase.id);
+    // A quarantined (uncompilable) spec is "invalid", not "skipped" — it never ran
+    // because its source was broken, not because a precondition was unmet.
+    const status: TestStatus = invalidReason ? "invalid" : (run?.status ?? "skipped");
+    const reason = invalidReason;
     const roundsNeeded = fixes.filter((f) => f.specId === s.testCase.id && f.applied).length;
 
     const cat = s.testCase.category;
@@ -62,6 +69,7 @@ export function generateCoverageReport(
       priority: s.testCase.priority,
       category: s.testCase.category,
       status,
+      ...(reason ? { reason } : {}),
       durationMs: run?.durationMs ?? 0,
       fixRoundsNeeded: roundsNeeded,
     };
@@ -70,8 +78,11 @@ export function generateCoverageReport(
   const totalPassed = specRows.filter((r) => r.status === "passed").length;
   const totalFailed = specRows.filter((r) => r.status === "failed" || r.status === "timedout").length;
   const totalSkipped = specRows.filter((r) => r.status === "skipped").length;
-  const passRate =
-    specs.length > 0 ? `${Math.round((totalPassed / specs.length) * 100)}%` : "0%";
+  const totalInvalid = specRows.filter((r) => r.status === "invalid").length;
+  // Pass rate is over RUNNABLE specs — invalid (uncompilable) ones aren't counted
+  // against the rate, so a generation glitch doesn't read as a test failure.
+  const runnable = specs.length - totalInvalid;
+  const passRate = runnable > 0 ? `${Math.round((totalPassed / runnable) * 100)}%` : "0%";
 
   const knownFailures = specRows
     .filter((r) => r.status === "failed" || r.status === "timedout")
@@ -94,6 +105,7 @@ export function generateCoverageReport(
     totalPassed,
     totalFailed,
     totalSkipped,
+    totalInvalid,
     passRate,
     byCategory,
     byPriority,
@@ -143,7 +155,8 @@ function buildMarkdown(r: CoverageReport): string {
     `| Tests passed | ${r.totalPassed} |`,
     `| Tests failed | ${r.totalFailed} |`,
     `| Tests skipped | ${r.totalSkipped} |`,
-    `| Pass rate | **${r.passRate}** |`,
+    `| Invalid (failed to compile) | ${r.totalInvalid > 0 ? `⚠️ **${r.totalInvalid}** — quarantined; see below` : "0"} |`,
+    `| Pass rate | **${r.passRate}**${r.totalInvalid > 0 ? ` (of ${r.totalGenerated - r.totalInvalid} runnable)` : ""} |`,
     `| Application bugs found | ${r.bugsFound.length > 0 ? `⚠️ **${r.bugsFound.length} — REVIEW REQUIRED** (see below)` : "0"} |`,
     `| UI changes detected | ${(() => { const n = new Set(r.fixLog.filter((f) => f.failureClass === "UI_CHANGE" && f.applied).map((f) => f.specId)).size; return n > 0 ? `🔧 **${n}** (see below)` : "0"; })()} |`,
     `| Fix rounds applied | ${[...new Set(r.fixLog.map((f) => f.round))].length} |`,
@@ -259,10 +272,12 @@ function buildMarkdown(r: CoverageReport): string {
       s.status === "passed" ? "✅ passed" :
       s.status === "failed" ? "❌ failed" :
       s.status === "timedout" ? "⏱ timeout" :
+      s.status === "invalid" ? "⚠️ invalid" :
       "⏭ skipped";
     const dur = s.durationMs > 0 ? `${(s.durationMs / 1000).toFixed(1)}s` : "-";
     const fix = s.fixRoundsNeeded > 0 ? `${s.fixRoundsNeeded} fix(es)` : "-";
-    lines.push(`| ${s.id} | ${s.title} | ${s.priority} | ${s.category} | ${statusIcon} | ${dur} | ${fix} |`);
+    const title = s.reason ? `${s.title} — _${s.reason}_` : s.title;
+    lines.push(`| ${s.id} | ${title} | ${s.priority} | ${s.category} | ${statusIcon} | ${dur} | ${fix} |`);
   }
 
   // ── Fix Iteration Log ────────────────────────────────────────────────────────

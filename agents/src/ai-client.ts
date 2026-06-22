@@ -1,29 +1,48 @@
 import { spawnSync } from "child_process";
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI client — dual-mode.
+// AI client — three providers, picked automatically by which key is set.
 //
-//   • If ANTHROPIC_API_KEY is set → call the Anthropic Messages API directly via
-//     @anthropic-ai/sdk. This is what you want for headless/cloud deploys (GCP),
-//     where the interactive `claude login` CLI isn't available. Billed per-token.
-//   • Otherwise → shell out to the local `claude` CLI (Claude Code) in headless
-//     JSON mode, using your existing `claude login` (no API key; counts against
-//     your Claude Pro/Max subscription). Best for local dev.
+//   1. Gemini  — if GEMINI_API_KEY (or GOOGLE_API_KEY) is set → call the Google
+//      Gemini API via @google/genai. Billed per-token; headless-friendly.
+//   2. Anthropic API — else if ANTHROPIC_API_KEY is set → call the Anthropic
+//      Messages API directly via @anthropic-ai/sdk. This is what you want for
+//      headless/cloud deploys (GCP) where `claude login` isn't available.
+//      Billed per-token.
+//   3. Claude CLI — otherwise → shell out to the local `claude` CLI (Claude
+//      Code) in headless JSON mode, using your existing `claude login` (no API
+//      key; counts against your Claude Pro/Max subscription). Best for local dev.
+//
+// Precedence: Gemini → Anthropic API → Claude CLI.
 //
 // Every model call in the agent funnels through createMessage(), so this is the
 // single switch point — no call site changes.
 //
 // Env:
-//   ANTHROPIC_API_KEY — when set, use the API instead of the CLI
+//   GEMINI_API_KEY / GOOGLE_API_KEY — when set, use Gemini
+//   GEMINI_MODEL      — Gemini model id. When unset, defaults to gemini-2.5-flash;
+//                       set it explicitly to use any other model (e.g. gemini-2.5-pro).
+//   ANTHROPIC_API_KEY — when set (and no Gemini key), use the Anthropic API
 //   ANTHROPIC_MODEL   — model id (default claude-opus-4-8). Aliases opus/sonnet/
 //                       haiku are mapped to current ids in API mode.
 //   CLAUDE_BIN        — claude binary path for CLI mode (default `claude`)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8";
+// Default the Gemini provider to the Flash tier (faster/cheaper) when no model is
+// specified. An explicit GEMINI_MODEL is always honored as-is (including Pro).
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
-const USE_API = Boolean(process.env.ANTHROPIC_API_KEY);
+
+type Provider = "gemini" | "anthropic" | "cli";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+const PROVIDER: Provider = GEMINI_API_KEY
+  ? "gemini"
+  : process.env.ANTHROPIC_API_KEY
+    ? "anthropic"
+    : "cli";
 
 interface CliJsonResponse {
   type: string;
@@ -56,6 +75,17 @@ function resolveApiModel(model: string): string {
   return aliases[model.toLowerCase()] ?? model;
 }
 
+// Map a model hint to a Gemini id. An explicit "gemini-*" id passes through as-is;
+// Claude-style aliases map to a Gemini tier; anything unrecognised falls back to
+// GEMINI_MODEL (which defaults to Flash when no model was specified).
+function resolveGeminiModel(model: string): string {
+  const m = model.toLowerCase();
+  if (m.startsWith("gemini")) return model;
+  if (m === "flash" || m.includes("haiku")) return "gemini-2.5-flash";
+  if (m === "pro" || m.includes("opus") || m.includes("sonnet")) return "gemini-2.5-pro";
+  return GEMINI_MODEL;
+}
+
 function buildPrompt(messages: Array<{ role: string; content: string }>): string {
   // Fast path — every caller in this codebase currently sends a single user turn.
   if (messages.length === 1 && messages[0].role === "user") {
@@ -67,7 +97,70 @@ function buildPrompt(messages: Array<{ role: string; content: string }>): string
 }
 
 export async function createMessage(params: CreateMessageParams): Promise<CreateMessageResult> {
-  return USE_API ? createViaApi(params) : createViaCli(params);
+  if (PROVIDER === "gemini") return createViaGemini(params);
+  if (PROVIDER === "anthropic") return createViaApi(params);
+  return createViaCli(params);
+}
+
+// ── Gemini mode (GEMINI_API_KEY / GOOGLE_API_KEY) ─────────────────────────────
+
+// Gemini 2.5 models are "thinking" models: hidden reasoning tokens are drawn from
+// the SAME maxOutputTokens budget as the visible answer. The callers' max_tokens
+// values were tuned for Claude (where the budget is purely answer tokens), so on
+// Gemini a chunk gets eaten by thinking and the real output is truncated (or
+// empty), producing parse failures. We bound thinking with thinkingBudget AND add
+// that budget on top of maxOutputTokens, so the visible answer still gets the full
+// requested max_tokens. (gemini-2.5-pro can't fully disable thinking; flash can.)
+const GEMINI_THINKING_BUDGET = 4096;
+
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI {
+  if (!geminiClient) geminiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  return geminiClient;
+}
+
+async function createViaGemini(params: CreateMessageParams): Promise<CreateMessageResult> {
+  // Callers send a single user turn (see buildPrompt), so we can pass the prompt
+  // text straight through as `contents`.
+  const prompt = buildPrompt(params.messages);
+
+  try {
+    const resp = await getGeminiClient().models.generateContent({
+      model: resolveGeminiModel(params.model ?? GEMINI_MODEL),
+      contents: prompt,
+      config: {
+        ...(params.system ? { systemInstruction: params.system } : {}),
+        maxOutputTokens: params.max_tokens + GEMINI_THINKING_BUDGET,
+        thinkingConfig: { thinkingBudget: GEMINI_THINKING_BUDGET },
+      },
+    });
+
+    const text = resp.text ?? "";
+    const finishReason = resp.candidates?.[0]?.finishReason;
+
+    if (!text) {
+      // No candidate text — usually a safety block or an empty/blocked response.
+      throw new Error(
+        `Gemini returned no text (finishReason=${finishReason ?? "unknown"}). ` +
+        `This is typically a safety filter or blocked prompt.`
+      );
+    }
+
+    // Map Gemini's truncation reason to the Anthropic-style stop_reason that
+    // planner.ts checks ("max_tokens").
+    return {
+      content: [{ type: "text", text }],
+      stop_reason: finishReason === "MAX_TOKENS" ? "max_tokens" : "end_turn",
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/api[\s_-]?key|invalid|unauthor|permission|403|401|400/i.test(msg)) {
+      throw new Error(
+        `GEMINI_API_KEY is missing/invalid or lacks access to the requested model. (${msg.slice(0, 200)})`
+      );
+    }
+    throw err;
+  }
 }
 
 // ── API mode (ANTHROPIC_API_KEY) ─────────────────────────────────────────────

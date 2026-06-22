@@ -6,6 +6,7 @@ import { bootstrapSeedData } from "./seeder";
 import { loadSeedState } from "./seed-state";
 import { runPlanner } from "./planner";
 import { runAutomator } from "./automator";
+import { validateSpecSyntax, quarantineSpec } from "./spec-validator";
 import { runPlaywright, failingIds, buildGrepPattern, mergeBlobReports } from "./runner";
 import { setupFileLogging, getLogFilePath } from "./logger";
 import { analyseAndFix } from "./fixer";
@@ -225,6 +226,28 @@ async function main() {
     if (GENERATE_ONLY) { console.log("\n--generate-only flag set.\n"); process.exit(0); }
   }
 
+  // ── Phase 3.5: Validation gate ───────────────────────────────────────────────
+  // Playwright compiles EVERY file in the test dir before running ANY test, so a
+  // single uncompilable spec (e.g. a truncated generation) aborts the whole suite
+  // and every test reports "skipped". Syntax-check each spec and quarantine the
+  // broken ones so the valid majority still runs; quarantined specs are reported
+  // as "invalid" (not silently skipped).
+  const invalidSpecs = new Map<string, string>(); // specId -> reason
+  for (const spec of specs) {
+    const err = validateSpecSyntax(spec.specContent, spec.fileName);
+    if (err) {
+      quarantineSpec(spec.filePath);
+      invalidSpecs.set(spec.testCase.id, `generation produced invalid syntax — ${err}`);
+    }
+  }
+  if (invalidSpecs.size > 0) {
+    console.log(
+      `\n      ⚠  ${invalidSpecs.size}/${specs.length} spec(s) failed to compile and were quarantined to ` +
+      `tests/_invalid/ (they will NOT poison the run):`
+    );
+    for (const [id, reason] of invalidSpecs) console.log(`        - ${id}: ${reason.slice(0, 90)}`);
+  }
+
   // ── Phase 4: Initial test run ────────────────────────────────────────────────
   t = Date.now();
   phase("[4/7]", `Running ${specs.length} tests — initial run...`);
@@ -237,6 +260,17 @@ async function main() {
   console.log(
     `      Initial result: ${runSummary.passed} passed  ${runSummary.failed} failed  ${runSummary.skipped} skipped  (${elapsed(t)})`
   );
+
+  // If Playwright reports collection/compile errors, NO tests executed — never let
+  // this masquerade as "all skipped". (The validation gate above should prevent
+  // it, but a file that esbuild accepts yet Playwright rejects would land here.)
+  if (runSummary.collectionErrors.length > 0) {
+    console.log(
+      `\n      ⚠  Playwright failed to compile the suite — ${runSummary.collectionErrors.length} error(s); ` +
+      `NO tests ran. Fix or quarantine these files:`
+    );
+    for (const e of runSummary.collectionErrors) console.log(`        - ${e.slice(0, 120)}`);
+  }
 
   // ── Phase 5–7: Fix loop ──────────────────────────────────────────────────────
   let failing = failingIds(runSummary.results);
@@ -305,7 +339,7 @@ async function main() {
   // ── Phase 7: Report ──────────────────────────────────────────────────────────
   // Markdown / JSON coverage first — the HTML wrapper reads coverage-report.md.
   phase("[7/7]", "Generating final report...");
-  const report = generateCoverageReport(plan, specs, allResults, allFixes, allBugs, APP_NAME);
+  const report = generateCoverageReport(plan, specs, allResults, allFixes, allBugs, APP_NAME, invalidSpecs);
   writeCoverageReport(report);
 
   // ── Merge per-round Playwright blobs + wrap with a Coverage tab ─────────────

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
+    "@google/genai": "^2.8.0",
     "playwright": "^1.49.0"
   },
   "devDependencies": {
