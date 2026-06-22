@@ -1,15 +1,28 @@
 import { spawnSync } from "child_process";
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
-// Dual-mode AI client (same pattern as ../../agents/src/ai-client.ts, kept inline
-// so this package has no cross-package source dependency):
-//   • ANTHROPIC_API_KEY set → Anthropic Messages API via @anthropic-ai/sdk (cloud/headless)
-//   • otherwise            → local `claude` CLI (Claude Code login; local dev)
+// Three-provider AI client (same pattern as ../../agents/src/ai-client.ts, kept
+// inline so this package has no cross-package source dependency). Provider is
+// chosen automatically by which key is set, precedence Gemini → Anthropic → CLI:
+//   • GEMINI_API_KEY / GOOGLE_API_KEY set → Google Gemini via @google/genai
+//   • else ANTHROPIC_API_KEY set          → Anthropic Messages API via @anthropic-ai/sdk
+//   • otherwise                           → local `claude` CLI (Claude Code login)
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8";
+// Gemini defaults to the Flash tier when no model is specified; an explicit
+// GEMINI_MODEL is honored as-is (see agents/src/ai-client.ts).
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
-const USE_API = Boolean(process.env.ANTHROPIC_API_KEY);
 const DEFAULT_MAX_TOKENS = 4000; // healer prompts return a small JSON locator object
+
+type Provider = "gemini" | "anthropic" | "cli";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+const PROVIDER: Provider = GEMINI_API_KEY
+  ? "gemini"
+  : process.env.ANTHROPIC_API_KEY
+    ? "anthropic"
+    : "cli";
 
 interface CliJsonResponse {
   is_error?: boolean;
@@ -27,12 +40,67 @@ function resolveApiModel(model: string): string {
   return aliases[model.toLowerCase()] ?? model;
 }
 
+// Default to Flash when unspecified; honor an explicit model (see agents/src/ai-client.ts).
+function resolveGeminiModel(model: string): string {
+  const m = model.toLowerCase();
+  if (m.startsWith("gemini")) return model;
+  if (m === "flash" || m.includes("haiku")) return "gemini-2.5-flash";
+  if (m === "pro" || m.includes("opus") || m.includes("sonnet")) return "gemini-2.5-pro";
+  return GEMINI_MODEL;
+}
+
 export async function askClaude(opts: {
   system?: string;
   prompt: string;
   model?: string;
 }): Promise<string> {
-  return USE_API ? askViaApi(opts) : askViaCli(opts);
+  if (PROVIDER === "gemini") return askViaGemini(opts);
+  if (PROVIDER === "anthropic") return askViaApi(opts);
+  return askViaCli(opts);
+}
+
+// ── Gemini mode ────────────────────────────────────────────────────────────────
+
+// Gemini 2.5 spends hidden "thinking" tokens out of maxOutputTokens, starving the
+// visible answer when the budget is tuned for Claude. Reserve a separate thinking
+// budget on top of the answer budget. See agents/src/ai-client.ts for the detail.
+const GEMINI_THINKING_BUDGET = 4096;
+
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI {
+  if (!geminiClient) geminiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  return geminiClient;
+}
+
+async function askViaGemini(opts: { system?: string; prompt: string; model?: string }): Promise<string> {
+  try {
+    const resp = await getGeminiClient().models.generateContent({
+      model: resolveGeminiModel(opts.model ?? GEMINI_MODEL),
+      contents: opts.prompt,
+      config: {
+        ...(opts.system ? { systemInstruction: opts.system } : {}),
+        maxOutputTokens: DEFAULT_MAX_TOKENS + GEMINI_THINKING_BUDGET,
+        thinkingConfig: { thinkingBudget: GEMINI_THINKING_BUDGET },
+      },
+    });
+    const text = resp.text ?? "";
+    if (!text) {
+      const finishReason = resp.candidates?.[0]?.finishReason;
+      throw new Error(
+        `Gemini returned no text (finishReason=${finishReason ?? "unknown"}). ` +
+        `This is typically a safety filter or blocked prompt.`
+      );
+    }
+    return text;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/api[\s_-]?key|invalid|unauthor|permission|403|401|400/i.test(msg)) {
+      throw new Error(
+        `GEMINI_API_KEY is missing/invalid or lacks access to the requested model. (${msg.slice(0, 200)})`
+      );
+    }
+    throw err;
+  }
 }
 
 // ── API mode ─────────────────────────────────────────────────────────────────

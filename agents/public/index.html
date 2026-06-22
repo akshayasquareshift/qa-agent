@@ -446,10 +446,19 @@ let busy = false;
 // ── load app context ──────────────────────────────────────────────────────
 async function loadContext() {
   try {
-    const c = await (await fetch("/api/context")).json();
-    const locale = c.localePrefix ? ` <span class="pill">${c.localePrefix}</span>` : "";
+    // Send the same config the Full Suite form holds, so the displayed context
+    // (base URL, locale, counts) matches what generation will actually use.
+    const cfg = (typeof collectConfig === "function") ? collectConfig().config : {};
+    const c = await (await fetch("/api/context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config: cfg }),
+    })).json();
+    const locale = c.localePrefix ? ` <span class="pill">${escapeHtml(c.localePrefix)}</span>` : "";
+    const baseUrl = c.baseUrl ? `<span class="pill">${escapeHtml(c.baseUrl)}</span>` : "";
     $("ctx").innerHTML =
       `Testing <b>${escapeHtml(c.appName)}</b>${locale}<br>` +
+      baseUrl +
       `<span class="pill">${escapeHtml(c.framework)}</span>` +
       `<span class="pill">${c.routeCount} routes</span>` +
       `<span class="pill">${c.selectorCount} selectors</span>` +
@@ -561,7 +570,7 @@ async function generate() {
     const resp = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instruction, previousCode: currentCode || undefined }),
+      body: JSON.stringify({ instruction, previousCode: currentCode || undefined, config: collectConfig().config }),
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || "Generation failed");
@@ -604,7 +613,7 @@ async function run() {
     const resp = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: currentCode, autoHeal: $("autoHeal").checked }),
+      body: JSON.stringify({ code: currentCode, autoHeal: $("autoHeal").checked, config: collectConfig().config }),
     });
     if (!resp.ok && !resp.body) throw new Error("Run failed to start");
 
@@ -726,6 +735,9 @@ function fmtMs(ms) {
 function switchTab(name) {
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === `tab-${name}`));
+  // Returning to authoring: refresh its context so it reflects any edits made to
+  // the Full Suite config form (base URL, source dirs, locale, …).
+  if (name === "authoring") loadContext();
 }
 
 async function loadSuiteDefaults() {
@@ -1144,8 +1156,9 @@ $("editSpecBtn").onclick = enterSpecEdit;
 $("saveSpecBtn").onclick = saveSpecEdit;
 $("cancelSpecBtn").onclick = cancelSpecEdit;
 renderChips();
-loadContext();
-loadSuiteDefaults();
+// Load the config form first, then derive the authoring context from it, so the
+// Authoring tab reflects the same settings (base URL, locale, …) as Full Suite.
+loadSuiteDefaults().then(loadContext);
 </script>
 </body>
 </html>

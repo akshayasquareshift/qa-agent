@@ -2,6 +2,7 @@ import { createMessage } from "./ai-client";
 import * as fs from "fs";
 import * as path from "path";
 import { formatSeedStateForPrompt } from "./seed-state";
+import { validateSpecSyntax } from "./spec-validator";
 import type { AppContext, TestCase, GeneratedSpec, SeedState } from "./types";
 
 const GENERATED_DIR = path.join(__dirname, "../../tests/generated");
@@ -143,29 +144,64 @@ ${learningsSection}
 Return ONLY the TypeScript source code. No markdown, no explanation, no code fences.`;
 }
 
+function stripFences(text: string): string {
+  return text
+    .replace(/^```(?:typescript|ts)?\n?/m, "")
+    .replace(/\n?```\s*$/m, "")
+    .trim();
+}
+
+async function generateSpecContent(
+  prompt: string,
+  maxTokens: number
+): Promise<{ code: string; truncated: boolean }> {
+  const response = await createMessage({
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content: prompt }],
+  });
+  return {
+    code: stripFences(response.content[0].text),
+    truncated: response.stop_reason === "max_tokens",
+  };
+}
+
 export async function runAutomator(
   testCase: TestCase,
   context: AppContext,
   seedState: SeedState | null,
   learnings?: string
 ): Promise<GeneratedSpec> {
-  const response = await createMessage({
-    max_tokens: 3000,
-    messages: [{ role: "user", content: buildPrompt(testCase, context, seedState, learnings) }],
-  });
-
-  let specContent = response.content[0].text;
-
-  specContent = specContent
-    .replace(/^```(?:typescript|ts)?\n?/m, "")
-    .replace(/\n?```\s*$/m, "")
-    .trim();
-
+  const prompt = buildPrompt(testCase, context, seedState, learnings);
   const fileName = toFileName(testCase);
+
+  // First attempt at the normal budget.
+  let { code, truncated } = await generateSpecContent(prompt, 3000);
+  let syntaxError = validateSpecSyntax(code, fileName);
+
+  // A truncated response (hit the output cap) or a spec that fails to parse would
+  // poison the whole Playwright run (one bad file aborts collection). Retry once
+  // with a much larger budget before giving up. `truncated` catches the common
+  // Gemini "thinking ate the budget" case even when the partial output happens to
+  // still parse.
+  if (truncated || syntaxError) {
+    const reason = truncated ? "output truncated (hit max_tokens)" : `syntax error: ${syntaxError}`;
+    console.log(`      ⚠ ${testCase.id}: ${reason} — regenerating at a larger budget...`);
+    const retry = await generateSpecContent(prompt, 8000);
+    // Keep the retry only if it's at least as good (parses, or no longer truncated).
+    const retryError = validateSpecSyntax(retry.code, fileName);
+    if (!retryError || (!retry.truncated && retry.code.length > code.length)) {
+      code = retry.code;
+      syntaxError = retryError;
+    }
+  }
+
+  if (syntaxError) {
+    console.log(`      ⚠ ${testCase.id}: still invalid after retry (${syntaxError}) — will be quarantined.`);
+  }
+
   const filePath = path.join(GENERATED_DIR, fileName);
-
   fs.mkdirSync(GENERATED_DIR, { recursive: true });
-  fs.writeFileSync(filePath, specContent, "utf-8");
+  fs.writeFileSync(filePath, code, "utf-8");
 
-  return { testCase, specContent, fileName, filePath };
+  return { testCase, specContent: code, fileName, filePath };
 }

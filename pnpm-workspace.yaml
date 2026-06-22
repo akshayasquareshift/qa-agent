@@ -2,5 +2,11 @@ packages:
   - 'agents'
   - 'agents-healer'
   - 'tests'
+# Packages allowed to run install/build scripts. pnpm writes this block with
+# "set this to true or false" placeholders when it detects unbuilt deps; set each
+# to true to approve. Without approval, pnpm blocks the scripts and the pre-run
+# deps check fails (so `pnpm author` / `pnpm generate` won't start).
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
+  '@google/genai': true
+  protobufjs: true

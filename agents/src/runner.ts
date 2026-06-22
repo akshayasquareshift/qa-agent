@@ -9,6 +9,10 @@ const RESULTS_FILE = path.join(TESTS_DIR, "test-results", "results.json");
 
 interface PlaywrightSuiteResult {
   suites: PlaywrightSuite[];
+  // Top-level errors are collection/compile failures (e.g. a spec with a syntax
+  // error). When present, Playwright aborts the WHOLE run before executing any
+  // test — so these must be surfaced, not swallowed.
+  errors?: Array<{ message?: string; location?: { file: string; line: number } }>;
   stats: {
     expected: number;
     unexpected: number;
@@ -51,6 +55,10 @@ export interface RunSummary {
   failed: number;
   skipped: number;
   results: TestRunResult[];
+  // Suite-level collection/compile errors (one bad file aborts the whole run).
+  // Non-empty means NO tests executed — callers must not treat the empty result
+  // set as "everything skipped".
+  collectionErrors: string[];
 }
 
 /**
@@ -110,7 +118,7 @@ export async function runPlaywright(
 
   if (!fs.existsSync(RESULTS_FILE)) {
     console.log("      Warning: results file not written — Playwright may have failed to start");
-    return { passed: 0, failed: 0, skipped: 0, results: [] };
+    return { passed: 0, failed: 0, skipped: 0, results: [], collectionErrors: [] };
   }
 
   let raw: PlaywrightSuiteResult | null = null;
@@ -121,8 +129,18 @@ export async function runPlaywright(
   }
 
   if (!raw) {
-    return { passed: 0, failed: 0, skipped: 0, results: [] };
+    return { passed: 0, failed: 0, skipped: 0, results: [], collectionErrors: [] };
   }
+
+  // Suite-level collection/compile errors abort the run before any test executes
+  // (e.g. a truncated spec with a syntax error). Surface them so the caller does
+  // not mistake the empty result set for "all tests skipped".
+  const collectionErrors = (raw.errors ?? [])
+    .map((e) => {
+      const loc = e.location ? ` (${path.basename(e.location.file)}:${e.location.line})` : "";
+      return `${(e.message ?? "").split("\n")[0].trim()}${loc}`;
+    })
+    .filter((m) => m.length > 0);
 
   const results: TestRunResult[] = [];
   collectResults(raw.suites, results, round);
@@ -131,7 +149,7 @@ export async function runPlaywright(
   const failed = results.filter((r) => r.status === "failed" || r.status === "timedout").length;
   const skipped = results.filter((r) => r.status === "skipped").length;
 
-  return { passed, failed, skipped, results };
+  return { passed, failed, skipped, results, collectionErrors };
 }
 
 function collectResults(
